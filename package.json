@@ -1,0 +1,14 @@
+{
+  "name": "gpt-4o-chat",
+  "version": "1.0.0",
+  "description": "GPT-4o 私人对话界面",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.82.0"
+  }
+}

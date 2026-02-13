@@ -1,0 +1,6 @@
+{
+  "model": "gpt-4o",
+  "temperature": 0.85,
+  "presence_penalty": 0,
+  "frequency_penalty": 0.15
+}

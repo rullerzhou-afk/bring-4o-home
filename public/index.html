@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPT-4o</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 侧边栏 -->
+    <aside id="sidebar">
+      <button id="new-chat" title="新对话">+ 新对话</button>
+      <div id="search-wrapper">
+        <input type="text" id="search-input" placeholder="搜索对话..." />
+        <button id="search-clear" class="hidden" title="清除搜索">&times;</button>
+      </div>
+      <div id="chat-list"></div>
+      <button id="theme-toggle" title="切换主题"></button>
+      <button id="settings-btn" title="设置">设置</button>
+    </aside>
+
+    <!-- 主区域 -->
+    <main id="main">
+      <!-- 顶栏：模型选择 -->
+      <div id="top-bar">
+        <select id="model-selector"></select>
+      </div>
+      <!-- 消息区 -->
+      <div id="messages">
+        <div id="welcome">
+          <p id="welcome-greeting">有什么我可以帮你的吗？</p>
+        </div>
+      </div>
+
+      <!-- 输入区 -->
+      <div id="input-area">
+        <div id="input-wrapper">
+          <div id="image-preview" class="hidden"></div>
+          <div id="input-row">
+            <button id="upload-btn" type="button" title="上传图片">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+            </button>
+            <input type="file" id="image-input" accept="image/*" multiple hidden />
+            <textarea
+              id="user-input"
+              placeholder="给 GPT-4o 发消息..."
+              rows="1"
+            ></textarea>
+            <button id="send-btn" title="发送">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M7 11L12 6L17 11M12 18V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p id="disclaimer">GPT-4o 可能会犯错。请核查重要信息。</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- 设置弹窗 -->
+  <div id="settings-overlay" class="hidden">
+    <div id="settings-panel">
+      <div id="settings-header">
+        <div>
+          <h2>Prompt 设置</h2>
+          <span id="current-model-display"></span>
+        </div>
+        <button id="settings-close">&times;</button>
+      </div>
+      <div id="settings-tabs">
+        <button class="tab active" data-tab="system">人格指令</button>
+        <button class="tab" data-tab="memory">长期记忆</button>
+        <button class="tab" data-tab="config">模型参数</button>
+      </div>
+      <div id="settings-body">
+        <textarea id="edit-system" class="prompt-editor" placeholder="人格指令（角色定义、风格规则、技能清单...）"></textarea>
+        <textarea id="edit-memory" class="prompt-editor hidden" placeholder="用户画像和长期记忆..."></textarea>
+        <div id="edit-config" class="config-panel hidden">
+          <div class="config-row">
+            <label>模型</label>
+            <select id="config-model"></select>
+          </div>
+          <div class="config-row">
+            <label>Temperature <span class="config-val" id="temp-val">1</span></label>
+            <input type="range" id="config-temp" min="0" max="2" step="0.05" value="1" />
+            <p class="config-hint">越低越确定/理性，越高越随机/有创意。网页版 ChatGPT 默认 1。</p>
+          </div>
+          <div class="config-row">
+            <label>Presence Penalty <span class="config-val" id="pp-val">0</span></label>
+            <input type="range" id="config-pp" min="-2" max="2" step="0.1" value="0" />
+            <p class="config-hint">正值鼓励模型谈论新话题，避免重复。网页版默认 0。</p>
+          </div>
+          <div class="config-row">
+            <label>Frequency Penalty <span class="config-val" id="fp-val">0</span></label>
+            <input type="range" id="config-fp" min="-2" max="2" step="0.1" value="0" />
+            <p class="config-hint">正值降低已出现词汇的重复率。网页版默认 0。</p>
+          </div>
+        </div>
+      </div>
+      <div id="settings-footer">
+        <span id="save-status"></span>
+        <button id="save-prompts">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Markdown 渲染 -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js" integrity="sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3" crossorigin="anonymous"></script>
+  <script src="app.js"></script>
+</body>
+</html>
