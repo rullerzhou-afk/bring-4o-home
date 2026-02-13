@@ -70,7 +70,7 @@ npm start
 
 ### 首选：gpt-4o-2024-11-20
 
-实测下来，**`gpt-4o-2024-11-20` 是目前人格还原度最高、最稳定的 4o 版本**。如果你搬家的目的是找回网页版 4o 的感觉，认准这个版本号，不要用 `gpt-4o`（会自动指向最新版，人格表现可能不同）。
+实测下来，**`gpt-4o-2024-11-20` 是目前人格还原度最高、最稳定的 4o 版本**。如果你搬家的目的是找回网页版 4o 的感觉，认准这个版本号，不要用 `gpt-4o`（人格表现可能不同）。
 
 ### 替代选择
 
@@ -122,7 +122,7 @@ npm start
 | GPT-4o / GPT-4.1 / o3 系列 | ✅ | 原生 function calling |
 | OpenRouter 多数模型 (Claude/Gemini 等) | ✅ | 支持 function calling |
 | DeepSeek R1 等推理模型 | ❌ | 推理模型不支持 function calling |
-| GLM 系列 (GLM-4-Plus 等) | ❌ | 会在文本中输出"调用工具"但不返回结构化指令 |
+| GLM 系列  | ❌ | 会在文本中输出"调用工具"但不返回结构化指令 |
 | Kimi | ❌ | 同上 |
 
 > 不支持搜索的模型会自动跳过搜索功能，不影响正常对话。
@@ -154,4 +154,4 @@ npm start
 
 ## License
 
-MIT
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — 可自由下载、学习、修改、分享，但不可商用。
