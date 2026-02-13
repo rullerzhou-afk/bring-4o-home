@@ -29,13 +29,26 @@ npm start
 - **SSE 流式回复** — 实时显示生成内容，打字机效果
 - **自定义人格** — 通过 system prompt 定义 AI 的性格、语气、技能
 - **自动记忆** — 对话后自动提取用户信息存入长期记忆
-- **联网搜索** — 通过 Serper.dev Google 搜索（需模型支持 function calling）
+- **联网搜索** — 通过 Serper.dev Google 搜索（需配置搜索 API Key）
 - **思考链展示** — DeepSeek R1 等推理模型的思考过程可折叠查看
 - **图片上传** — 支持 vision 模型的图片理解
 - **对话持久化** — 服务端存储，聊天记录不丢失
 - **聊天历史搜索** — 全文搜索历史对话内容
 - **亮/暗主题切换** — 暗色、亮色、跟随系统三档
 - **Token 用量显示** — 每条回复显示 token 数、模型名、响应时间
+
+## API Key 获取
+
+三个渠道至少配置一个，下拉框只会显示已配置渠道的模型：
+
+| 渠道 | 获取地址 | 说明 |
+|------|----------|------|
+| **OpenAI** | https://platform.openai.com/api-keys | GPT-4o / GPT-4.1 / o3 系列，需要国际信用卡 |
+| **火山引擎** | https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey | GLM / Kimi 系列，国内直接注册 |
+| **OpenRouter** | https://openrouter.ai/keys | 聚合平台，一个 key 用几百个模型，无需国际信用卡 |
+| **Serper** (搜索) | https://serper.dev | 免费 2500 次 Google 搜索，配置后自动启用联网功能 |
+
+> **新手推荐**：如果没有国际信用卡，用 OpenRouter 最省事——注册即用，GPT-4o 和 Claude、Gemini 都能调。
 
 ## 环境变量
 
@@ -44,8 +57,8 @@ npm start
 | 变量 | 必需 | 说明 |
 |------|------|------|
 | `OPENAI_API_KEY` | 三选一 | OpenAI API 密钥 |
-| `ARK_API_KEY` | 三选一 | 火山引擎方舟平台 API key（GLM、Kimi） |
-| `OPENROUTER_API_KEY` | 三选一 | OpenRouter API key（无国际信用卡也可用） |
+| `ARK_API_KEY` | 三选一 | 火山引擎方舟平台 API key |
+| `OPENROUTER_API_KEY` | 三选一 | OpenRouter API key |
 | `ADMIN_TOKEN` | 否 | 鉴权 token；未设置时仅允许本机访问 |
 | `SERPER_API_KEY` | 否 | Serper.dev 搜索 API key；配置后自动启用联网搜索 |
 | `HOST` / `PORT` | 否 | 监听地址，默认 `127.0.0.1:3000` |
@@ -53,17 +66,23 @@ npm start
 | `AUTO_LEARN_MODEL` | 否 | 自动记忆提取模型，默认 `gpt-4o-mini` |
 | `AUTO_LEARN_COOLDOWN` | 否 | 自动记忆冷却秒数，默认 `300` |
 
-> 三个 API Key 至少配置一个，下拉框只会显示已配置渠道的模型。
+## 模型推荐
 
-## 自定义你的 AI
+### 首选：gpt-4o-2024-11-20
 
-项目内置了三个可编辑文件，也可以通过网页右上角的设置面板实时修改：
+实测下来，**`gpt-4o-2024-11-20` 是目前人格还原度最高、最稳定的 4o 版本**。如果你搬家的目的是找回网页版 4o 的感觉，认准这个版本号，不要用 `gpt-4o`（会自动指向最新版，人格表现可能不同）。
 
-| 文件 | 用途 | 说明 |
-|------|------|------|
-| `prompts/system.md` | 人格指令 | 定义 AI 的性格、语气、规则 |
-| `prompts/memory.md` | 用户记忆 | 你的画像 + 长期记忆（auto-learn 会自动追加） |
-| `prompts/config.json` | 模型参数 | model、temperature、frequency_penalty 等 |
+### 替代选择
+
+| 模型 | 体验 | 适合场景 |
+|------|------|----------|
+| `gpt-4o-2024-11-20` | ⭐⭐⭐⭐⭐ 人格最稳，最接近网页版 4o | 追求"原汁原味"的用户 |
+| `gpt-4.1` | ⭐⭐⭐⭐ 指令遵循强，但人格味淡一些 | 偏工具向的用户 |
+| GLM-4-Plus / GLM-4.7 | ⭐⭐⭐⭐ 中文表达自然，人设执行力不错 | 国内直连、不想折腾的用户 |
+| Kimi | ⭐⭐⭐⭐ 中文理解好，长上下文表现突出 | 长文创作、中文深度对话 |
+| DeepSeek R1 | ⭐⭐⭐ 推理强，但人格弱、不支持搜索 | 数学/逻辑/代码场景 |
+
+> GLM 和 Kimi 整体表现不错，中文语感甚至比部分 OpenAI 模型更自然。但如果你追求的是"复刻网页版 4o 的那个它"，国产模型在人格稳定性和指令遵循的细腻程度上还是有差距——它们能做到 80 分的搭档，但到不了原主那种"调过十几轮的默契感"。作为平替或备选渠道完全够用。
 
 ### 推荐参数
 
@@ -76,30 +95,47 @@ npm start
 }
 ```
 
-- `gpt-4o-2024-11-20` — 人格最稳定的 4o 版本
-- `temperature: 0.85` — 比默认 1 略低，人格一致性更好
-- `frequency_penalty: 0.15` — 减少重复用词，回复更自然
+- **temperature: 0.85** — 比默认 1 略低，人格一致性更好，不容易"出戏"
+- **frequency_penalty: 0.15** — 减少重复用词，让回复更自然
+- **presence_penalty: 0** — 保持 0 就好，不需要强制换话题
 
-## 模型渠道与路由
+> 这套参数是实际跑了十几轮 A/B 测试调出来的，可以直接用。
+
+## 自定义你的 AI
+
+项目内置了三个可编辑文件，也可以通过网页右上角的设置面板实时修改：
+
+| 文件 | 用途 | 说明 |
+|------|------|------|
+| `prompts/system.md` | 人格指令 | 定义 AI 的性格、语气、规则。项目自带了一套精调过的通用模板 |
+| `prompts/memory.md` | 用户记忆 | 你的画像 + 长期记忆（auto-learn 会自动追加） |
+| `prompts/config.json` | 模型参数 | model、temperature、frequency_penalty 等 |
+
+## 联网搜索
+
+联网搜索需要配置 `SERPER_API_KEY`（在 [serper.dev](https://serper.dev) 免费注册，赠送 2500 次搜索额度）。配置后，AI 会在需要实时信息时自动调用 Google 搜索。
+
+**但不是所有模型都支持搜索。** 联网搜索依赖模型的 function calling 能力——模型需要能返回结构化的工具调用指令，而不是在文本里说"我来搜索一下"。
+
+| 模型 | 搜索 | 说明 |
+|------|:----:|------|
+| GPT-4o / GPT-4.1 / o3 系列 | ✅ | 原生 function calling |
+| OpenRouter 多数模型 (Claude/Gemini 等) | ✅ | 支持 function calling |
+| DeepSeek R1 等推理模型 | ❌ | 推理模型不支持 function calling |
+| GLM 系列 (GLM-4-Plus 等) | ❌ | 会在文本中输出"调用工具"但不返回结构化指令 |
+| Kimi | ❌ | 同上 |
+
+> 不支持搜索的模型会自动跳过搜索功能，不影响正常对话。
+
+## 模型渠道路由
+
+系统根据模型 ID 自动选择 API 渠道，不需要手动配置：
 
 | 渠道 | 模型 ID 特征 | 示例 |
 |------|-------------|------|
 | OpenAI | `gpt-*`、`o3-*` | `gpt-4o`、`gpt-4.1`、`o3-mini` |
 | 火山引擎 | 不含 `/` 的国产模型 | `glm-4-plus`、`kimi-xxx` |
 | OpenRouter | 含 `/` | `anthropic/claude-3.5-sonnet`、`google/gemini-2.0-flash` |
-
-## 联网搜索支持
-
-联网搜索依赖模型的 **function calling** 能力：
-
-| 模型 | 搜索 | 说明 |
-|------|:----:|------|
-| GPT-4o / GPT-4.1 / o3 系列 | :white_check_mark: | OpenAI 原生 function calling |
-| OpenRouter 多数模型 (Claude/Gemini 等) | :white_check_mark: | 支持 function calling |
-| DeepSeek R1 等推理模型 | :x: | 推理模型不支持 function calling |
-| GLM 系列 | :x: | 不返回结构化 `tool_calls` |
-
-> 不支持搜索的模型会自动跳过 tools 参数，不影响正常对话。
 
 ## 技术栈
 
@@ -113,6 +149,8 @@ npm start
 
 - ChatGPT Plus：$20/月
 - API 日常聊天（每天 30-50 条）：约 $1-3/月
+
+搬完家之后，每个月的花费大约是 Plus 的 1/10。
 
 ## License
 
