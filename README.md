@@ -8,8 +8,8 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/你的用户名/gpt-4o-chat.git
-cd gpt-4o-chat
+git clone https://github.com/rullerzhou-afk/bring-4o-home.git
+cd bring-4o-home
 
 # 2. 安装依赖
 npm install
