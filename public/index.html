@@ -77,6 +77,7 @@
         <button class="tab active" data-tab="system">人格指令</button>
         <button class="tab" data-tab="memory">长期记忆</button>
         <button class="tab" data-tab="config">模型参数</button>
+        <button class="tab" data-tab="import">导入与总结</button>
       </div>
       <div id="settings-body">
         <textarea id="edit-system" class="prompt-editor" placeholder="人格指令（角色定义、风格规则、技能清单...）"></textarea>
@@ -100,6 +101,80 @@
             <label>Frequency Penalty <span class="config-val" id="fp-val">0</span></label>
             <input type="range" id="config-fp" min="-2" max="2" step="0.1" value="0" />
             <p class="config-hint">正值降低已出现词汇的重复率。网页版默认 0。</p>
+          </div>
+        </div>
+
+        <!-- 导入与总结 Tab -->
+        <div id="edit-import" class="hidden">
+          <!-- 阶段 1：文件上传 -->
+          <div id="import-drop-zone">
+            <div class="drop-zone-content">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p>拖拽 ChatGPT 导出的 JSON 文件到这里</p>
+              <button id="import-file-btn" type="button">选择文件</button>
+            </div>
+            <div id="import-parsing" class="hidden">
+              <div class="spinner"></div>
+              <p>正在解析，请稍候...</p>
+            </div>
+            <input type="file" id="import-file-input" accept=".json" hidden />
+          </div>
+          <div id="import-error" class="hidden"></div>
+
+          <!-- 阶段 2：对话列表 -->
+          <div id="import-list-section" class="hidden">
+            <div id="import-scope-toggle">
+              <button class="scope-btn active" data-scope="imported">本次导入</button>
+              <button class="scope-btn" data-scope="all">全部本地</button>
+            </div>
+            <div id="import-list-header">
+              <label><input type="checkbox" id="import-select-all" checked /> 全选</label>
+              <span id="import-count"></span>
+            </div>
+            <div id="import-conv-list"></div>
+            <div id="import-actions">
+              <button id="import-do-btn" type="button">导入选中对话</button>
+            </div>
+            <div id="import-progress" class="hidden">
+              <div id="import-progress-bar"><div id="import-progress-fill"></div></div>
+              <span id="import-progress-text"></span>
+            </div>
+            <div id="import-result" class="hidden"></div>
+
+            <!-- 阶段 3：总结生成 -->
+            <div id="summary-section">
+              <div class="config-row">
+                <label>总结模型</label>
+                <select id="summary-model"></select>
+              </div>
+              <button id="summary-generate-btn" type="button">总结选中对话，生成 Prompt 建议</button>
+              <div id="summary-loading" class="hidden">
+                <div class="spinner"></div>
+                <span>正在分析已选对话...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 阶段 4：总结结果 -->
+          <div id="import-summary-result" class="hidden">
+            <h3>建议的系统提示词</h3>
+            <textarea id="summary-system" class="prompt-editor" placeholder="AI 将在这里生成建议的系统提示词..."></textarea>
+            <h3>建议的用户记忆</h3>
+            <textarea id="summary-memory" class="prompt-editor" placeholder="AI 将在这里生成建议的用户记忆..."></textarea>
+            <div id="summary-notes" class="hidden">
+              <h4>变更说明</h4>
+              <div id="summary-notes-content"></div>
+            </div>
+            <div class="summary-warning">应用后将覆盖当前 Prompt（服务端会自动备份旧版本）</div>
+            <div id="summary-apply-actions">
+              <button id="summary-apply-btn" type="button">应用到设置</button>
+              <button id="summary-cancel-btn" type="button" class="secondary-btn">取消</button>
+            </div>
+            <div id="summary-apply-status" class="hidden"></div>
           </div>
         </div>
       </div>

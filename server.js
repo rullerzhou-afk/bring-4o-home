@@ -526,14 +526,38 @@ app.get("/api/prompts", async (req, res) => {
 });
 
 // ===== API: 保存 prompt 文件 =====
+const BACKUPS_DIR = path.join(__dirname, "prompts", "backups");
+
 app.put("/api/prompts", async (req, res) => {
-  const validated = validatePromptPatch(req.body);
+  // 提取 backup 标志（不参与 validate）
+  const wantBackup = !!req.body?.backup;
+  const body = { ...req.body };
+  delete body.backup;
+
+  const validated = validatePromptPatch(body);
   if (!validated.ok) {
     return res.status(400).json({ error: validated.error });
   }
 
   const { system, memory } = validated.value;
   try {
+    // 备份旧 Prompt
+    if (wantBackup) {
+      if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+      const [oldSystem, oldMemory] = await Promise.all([
+        readPromptFile(SYSTEM_PATH),
+        readPromptFile(MEMORY_PATH),
+      ]);
+      const backupData = {
+        timestamp: new Date().toISOString(),
+        system: oldSystem,
+        memory: oldMemory,
+      };
+      const backupFile = path.join(BACKUPS_DIR, `${Date.now()}.json`);
+      await fsp.writeFile(backupFile, JSON.stringify(backupData, null, 2), "utf-8");
+      console.log(`Prompt backup saved: ${backupFile}`);
+    }
+
     const writes = [];
     if (system !== undefined) writes.push(fsp.writeFile(SYSTEM_PATH, system, "utf-8"));
     if (memory !== undefined) writes.push(fsp.writeFile(MEMORY_PATH, memory, "utf-8"));
@@ -817,6 +841,138 @@ app.get("/api/models", async (req, res) => {
     res.json([...openaiModels, ...arkModels, ...orModels]);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== API: 对话总结生成 Prompt =====
+const SUMMARIZE_PROMPT = `你是一个对话分析专家。请分析以下用户与 AI 的多段历史对话，在用户提供的现有 Prompt 基础上修订完善。
+
+## 输入说明
+你会收到：
+1. 用户现有的系统提示词（可能为空）
+2. 用户现有的记忆文件（可能为空）
+3. 多段历史对话的摘要
+
+## 任务一：修订系统提示词（suggestedSystem）
+在现有系统提示词基础上修订完善：
+- 保留现有 Prompt 中合理的部分
+- 根据对话中 AI 的回复风格、用户对 AI 的期望，补充或调整人格描述
+- 如果用户对 AI 有特殊要求（称呼、语气、风格），务必包含
+- 如果现有 Prompt 为空，则从零生成
+- 聚焦"人格"和"行为规范"，不要罗列功能说明
+- 200-500 字
+
+## 任务二：修订用户画像（suggestedMemory）
+在现有记忆文件基础上补充新信息：
+- 保留现有记忆中仍然有效的信息
+- 从对话中提取新的用户事实（身份、偏好、习惯、兴趣、工作等）
+- 每条以 "- " 开头，不超过 30 字
+- 去重：如果新提取的信息与已有记忆重复，不要重复添加
+
+## 任务三：变更说明（notes）
+简短说明你做了哪些修改，3-5 条，帮助用户理解变更内容。
+
+请严格按以下 JSON 格式输出，不要输出其他内容：
+\`\`\`json
+{
+  "suggestedSystem": "完整的修订后系统提示词",
+  "suggestedMemory": "完整的修订后记忆内容",
+  "notes": "- 变更1\\n- 变更2\\n- 变更3"
+}
+\`\`\``;
+
+app.post("/api/conversations/summarize", async (req, res) => {
+  const ids = req.body?.conversationIds;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 50) {
+    return res.status(400).json({ error: "请选择 1-50 条对话" });
+  }
+  const model = (typeof req.body?.model === "string" && req.body.model.trim())
+    ? req.body.model.trim()
+    : (await readConfig()).model;
+
+  // 读取现有 Prompt 作为基线
+  const [currentSystem, currentMemory] = await Promise.all([
+    readPromptFile(SYSTEM_PATH),
+    readPromptFile(MEMORY_PATH),
+  ]);
+
+  // 加载对话内容并采样
+  const allSamples = [];
+  for (const id of ids) {
+    const filePath = getConversationPath(id);
+    if (!filePath) continue;
+    try {
+      const data = JSON.parse(await fsp.readFile(filePath, "utf-8"));
+      const msgs = (data.messages || []).slice(-10);
+      const sample = msgs
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => {
+          const text =
+            typeof m.content === "string"
+              ? m.content
+              : Array.isArray(m.content)
+                ? m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")
+                : "";
+          return `${m.role === "user" ? "用户" : "AI"}: ${text.slice(0, 500)}`;
+        })
+        .join("\n");
+      if (sample) allSamples.push(`### ${data.title || "未命名"}\n${sample}`);
+    } catch {
+      // 跳过读取失败的对话
+    }
+  }
+
+  if (allSamples.length === 0) {
+    return res.status(400).json({ error: "没有可用的对话内容" });
+  }
+
+  // 构建用户消息（含现有 Prompt 基线 + 对话样本）
+  let userContent = "## 现有系统提示词\n\n";
+  userContent += currentSystem || "（空）";
+  userContent += "\n\n## 现有用户记忆\n\n";
+  userContent += currentMemory || "（空）";
+  userContent += "\n\n## 历史对话摘要\n\n";
+  userContent += allSamples.join("\n\n---\n\n");
+  if (userContent.length > 30000) {
+    userContent = userContent.slice(0, 30000) + "\n\n[...内容已截断]";
+  }
+
+  try {
+    const client = getClientForModel(model);
+    console.log(`[summarize] model: ${model}, conversations: ${allSamples.length}, content: ${userContent.length} chars`);
+    const response = await client.chat.completions.create({
+      model,
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: SUMMARIZE_PROMPT },
+        { role: "user", content: userContent },
+      ],
+    });
+
+    const output = response.choices[0]?.message?.content || "";
+
+    // 解析 JSON 输出（兼容 ```json 代码块）
+    let parsed;
+    try {
+      const jsonMatch = output.match(/```json\s*([\s\S]*?)```/)
+                     || output.match(/\{[\s\S]*"suggestedSystem"[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : output;
+      parsed = JSON.parse(jsonStr.trim());
+    } catch {
+      return res.status(502).json({
+        error: "模型返回格式异常，无法解析为 JSON。请重试或更换模型。",
+      });
+    }
+
+    res.json({
+      suggestedSystem: String(parsed.suggestedSystem || ""),
+      suggestedMemory: String(parsed.suggestedMemory || ""),
+      notes: String(parsed.notes || ""),
+    });
+  } catch (err) {
+    const message = formatProviderError(err);
+    console.error("Summarize API error:", message);
+    res.status(500).json({ error: message });
   }
 });
 

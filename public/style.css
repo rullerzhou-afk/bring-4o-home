@@ -1023,3 +1023,350 @@ body {
   from { transform: translateX(-50%) translateY(20px); opacity: 0; }
   to { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
+
+/* ===== 导入与总结面板 ===== */
+#edit-import {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  max-height: 55vh;
+}
+
+/* 拖拽上传区 */
+#import-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+#import-drop-zone:hover,
+#import-drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(16, 163, 127, 0.06);
+}
+
+.drop-zone-content svg {
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.drop-zone-content p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+#import-file-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+#import-file-btn:hover {
+  border-color: var(--accent);
+}
+
+#import-parsing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+#import-parsing p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+#import-error {
+  color: #e74c3c;
+  font-size: 13px;
+  padding: 8px 12px;
+  background: rgba(231, 76, 60, 0.1);
+  border-radius: 8px;
+}
+
+/* 范围切换 */
+#import-scope-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+.scope-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.scope-btn:hover {
+  color: var(--text-primary);
+}
+
+.scope-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+/* 对话列表 */
+#import-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+#import-list-header label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+#import-conv-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.import-conv-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+
+.import-conv-item:last-child {
+  border-bottom: none;
+}
+
+.import-conv-item:hover {
+  background: var(--hover-bg);
+}
+
+.import-conv-item input[type="checkbox"] {
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+.import-conv-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.import-conv-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 操作按钮 */
+#import-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#import-do-btn,
+#summary-generate-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+#import-do-btn:hover,
+#summary-generate-btn:hover {
+  opacity: 0.9;
+}
+
+#import-do-btn:disabled,
+#summary-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 进度条 */
+#import-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#import-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#import-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+#import-progress-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 100px;
+  text-align: right;
+}
+
+#import-result {
+  font-size: 13px;
+  color: var(--accent);
+  padding: 8px 0;
+}
+
+#import-result.error {
+  color: #e74c3c;
+}
+
+/* 总结区 */
+#summary-section {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#summary-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* spinner 复用现有 @keyframes spin */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 总结结果 */
+#import-summary-result h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+#import-summary-result .prompt-editor {
+  height: 180px;
+  max-height: 30vh;
+  margin-bottom: 12px;
+}
+
+#summary-notes {
+  margin-bottom: 12px;
+}
+
+#summary-notes h4 {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+#summary-notes-content {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+
+.summary-warning {
+  font-size: 12px;
+  color: #e6a817;
+  padding: 8px 12px;
+  background: rgba(230, 168, 23, 0.1);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+#summary-apply-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#summary-apply-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+#summary-apply-btn:hover {
+  opacity: 0.9;
+}
+
+.secondary-btn {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.secondary-btn:hover {
+  border-color: var(--accent);
+}
+
+#summary-apply-status {
+  font-size: 13px;
+  color: var(--accent);
+  padding: 4px 0;
+}

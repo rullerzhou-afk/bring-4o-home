@@ -972,6 +972,34 @@ const tempVal = document.getElementById("temp-val");
 const ppVal = document.getElementById("pp-val");
 const fpVal = document.getElementById("fp-val");
 
+// 导入与总结控件
+const editImport = document.getElementById("edit-import");
+const importDropZone = document.getElementById("import-drop-zone");
+const importFileInput = document.getElementById("import-file-input");
+const importFileBtn = document.getElementById("import-file-btn");
+const importParsing = document.getElementById("import-parsing");
+const importError = document.getElementById("import-error");
+const importListSection = document.getElementById("import-list-section");
+const importSelectAll = document.getElementById("import-select-all");
+const importCount = document.getElementById("import-count");
+const importConvList = document.getElementById("import-conv-list");
+const importDoBtn = document.getElementById("import-do-btn");
+const importProgress = document.getElementById("import-progress");
+const importProgressFill = document.getElementById("import-progress-fill");
+const importProgressText = document.getElementById("import-progress-text");
+const importResult = document.getElementById("import-result");
+const summaryModel = document.getElementById("summary-model");
+const summaryGenerateBtn = document.getElementById("summary-generate-btn");
+const summaryLoading = document.getElementById("summary-loading");
+const importSummaryResult = document.getElementById("import-summary-result");
+const summarySystemTextarea = document.getElementById("summary-system");
+const summaryMemoryTextarea = document.getElementById("summary-memory");
+const summaryNotes = document.getElementById("summary-notes");
+const summaryNotesContent = document.getElementById("summary-notes-content");
+const summaryApplyBtn = document.getElementById("summary-apply-btn");
+const summaryCancelBtn = document.getElementById("summary-cancel-btn");
+const summaryApplyStatus = document.getElementById("summary-apply-status");
+
 // 滑块实时显示数值
 configTemp.addEventListener("input", () => (tempVal.textContent = configTemp.value));
 configPP.addEventListener("input", () => (ppVal.textContent = configPP.value));
@@ -1052,6 +1080,8 @@ tabs.forEach((tab) => {
     editSystem.classList.toggle("hidden", target !== "system");
     editMemory.classList.toggle("hidden", target !== "memory");
     editConfig.classList.toggle("hidden", target !== "config");
+    editImport.classList.toggle("hidden", target !== "import");
+    if (target === "import") loadSummaryModelSelector();
   });
 });
 
@@ -1225,6 +1255,419 @@ window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", ()
 });
 
 applyTheme(localStorage.getItem(THEME_KEY) || "system");
+
+// ===== 导入与总结 =====
+let lastImportedConvs = []; // 本次导入解析出的对话列表
+let importScope = "imported"; // "imported" | "all"
+let importChecked = new Set(); // 勾选的对话 ID
+let allScopeChecked = new Set(); // 「全部本地」范围的勾选状态
+
+// 加载总结模型下拉框
+let summaryModelsLoaded = false;
+async function loadSummaryModelSelector() {
+  if (summaryModelsLoaded) return;
+  try {
+    const [modelsRes, configRes] = await Promise.all([
+      apiFetch("/api/models"),
+      apiFetch("/api/config"),
+    ]);
+    if (!modelsRes.ok || !configRes.ok) return;
+    const models = await modelsRes.json();
+    const config = await configRes.json();
+    summaryModel.innerHTML = "";
+    models.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m;
+      if (m === config.model) opt.selected = true;
+      summaryModel.appendChild(opt);
+    });
+    summaryModelsLoaded = true;
+  } catch (err) {
+    console.error("加载总结模型列表失败:", err);
+  }
+}
+
+// --- 文件上传 ---
+importFileBtn.addEventListener("click", () => importFileInput.click());
+importDropZone.addEventListener("click", (e) => {
+  if (e.target === importDropZone || e.target.closest(".drop-zone-content")) {
+    importFileInput.click();
+  }
+});
+
+importDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  importDropZone.classList.add("drag-over");
+});
+importDropZone.addEventListener("dragleave", () => {
+  importDropZone.classList.remove("drag-over");
+});
+importDropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  importDropZone.classList.remove("drag-over");
+  const file = e.dataTransfer.files[0];
+  if (file) handleImportFile(file);
+});
+
+importFileInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) handleImportFile(file);
+  importFileInput.value = "";
+});
+
+function handleImportFile(file) {
+  if (!file.name.endsWith(".json")) {
+    showImportError("请上传 .json 格式的文件");
+    return;
+  }
+
+  // 显示解析中
+  importError.classList.add("hidden");
+  importParsing.classList.remove("hidden");
+  importDropZone.querySelector(".drop-zone-content").classList.add("hidden");
+  importListSection.classList.add("hidden");
+  importSummaryResult.classList.add("hidden");
+
+  const reader = new FileReader();
+  reader.onload = function () {
+    const worker = new Worker("import-worker.js");
+    worker.onmessage = function (e) {
+      worker.terminate();
+      importParsing.classList.add("hidden");
+      importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
+
+      if (e.data.error) {
+        showImportError(e.data.error);
+        return;
+      }
+
+      const parsed = e.data.conversations || [];
+      if (parsed.length === 0) {
+        showImportError("未找到有效对话，请检查文件内容");
+        return;
+      }
+
+      // 处理 ID 冲突（与现有对话比对）
+      const existingIds = new Set(conversations.map((c) => c.id));
+      for (const conv of parsed) {
+        while (existingIds.has(conv.id)) {
+          conv.id = (parseInt(conv.id, 10) + 1).toString();
+        }
+        existingIds.add(conv.id);
+      }
+
+      lastImportedConvs = parsed;
+      importScope = "imported";
+      importChecked = new Set(parsed.map((c) => c.id));
+      allScopeChecked = new Set();
+
+      // 更新 scope 按钮
+      document.querySelectorAll(".scope-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.scope === "imported");
+      });
+
+      renderImportList();
+      importListSection.classList.remove("hidden");
+      importResult.classList.add("hidden");
+      importSummaryResult.classList.add("hidden");
+    };
+    worker.onerror = function (err) {
+      worker.terminate();
+      importParsing.classList.add("hidden");
+      importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
+      showImportError("解析失败: " + (err.message || "未知错误"));
+    };
+    worker.postMessage(reader.result);
+  };
+  reader.onerror = function () {
+    importParsing.classList.add("hidden");
+    importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
+    showImportError("文件读取失败");
+  };
+  reader.readAsText(file);
+}
+
+function showImportError(msg) {
+  importError.textContent = msg;
+  importError.classList.remove("hidden");
+}
+
+// --- 范围切换 ---
+document.querySelectorAll(".scope-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".scope-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    importScope = btn.dataset.scope;
+    renderImportList();
+  });
+});
+
+// --- 对话列表渲染 ---
+function getImportListData() {
+  if (importScope === "imported") {
+    return lastImportedConvs;
+  }
+  // 「全部本地」: 已有对话（含已导入的）
+  return conversations.map((c) => ({
+    id: c.id,
+    title: c.title,
+    messageCount: c.messages ? c.messages.length : "?",
+    createTime: parseInt(c.id, 10) / 1000,
+  }));
+}
+
+function getCheckedSet() {
+  return importScope === "imported" ? importChecked : allScopeChecked;
+}
+
+function renderImportList() {
+  const items = getImportListData();
+  const checked = getCheckedSet();
+  importConvList.innerHTML = "";
+
+  items.forEach((conv) => {
+    const div = document.createElement("div");
+    div.className = "import-conv-item";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = checked.has(conv.id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        checked.add(conv.id);
+      } else {
+        checked.delete(conv.id);
+      }
+      updateImportSelectAll();
+    });
+
+    const title = document.createElement("span");
+    title.className = "import-conv-title";
+    title.textContent = conv.title;
+
+    const meta = document.createElement("span");
+    meta.className = "import-conv-meta";
+    const msgCount = conv.messageCount != null ? conv.messageCount : "?";
+    const dateStr = conv.createTime ? formatImportDate(conv.createTime) : "";
+    meta.textContent = msgCount + "条" + (dateStr ? " " + dateStr : "");
+
+    div.appendChild(cb);
+    div.appendChild(title);
+    div.appendChild(meta);
+
+    // 点击行也切换勾选
+    div.addEventListener("click", (e) => {
+      if (e.target === cb) return;
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event("change"));
+    });
+
+    importConvList.appendChild(div);
+  });
+
+  importCount.textContent = "共 " + items.length + " 条对话";
+  updateImportSelectAll();
+
+  // 「全部本地」模式下隐藏导入按钮（已经在本地了）
+  importDoBtn.style.display = importScope === "all" ? "none" : "";
+}
+
+function updateImportSelectAll() {
+  const items = getImportListData();
+  const checked = getCheckedSet();
+  importSelectAll.checked = items.length > 0 && items.every((c) => checked.has(c.id));
+}
+
+importSelectAll.addEventListener("change", () => {
+  const items = getImportListData();
+  const checked = getCheckedSet();
+  if (importSelectAll.checked) {
+    items.forEach((c) => checked.add(c.id));
+  } else {
+    checked.clear();
+  }
+  renderImportList();
+});
+
+function formatImportDate(ts) {
+  const d = new Date(ts * 1000);
+  if (isNaN(d.getTime())) return "";
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+// --- 导入选中对话 ---
+importDoBtn.addEventListener("click", async () => {
+  const selected = lastImportedConvs.filter((c) => importChecked.has(c.id));
+  if (selected.length === 0) {
+    showImportError("请至少选择一条对话");
+    return;
+  }
+
+  importDoBtn.disabled = true;
+  importProgress.classList.remove("hidden");
+  importResult.classList.add("hidden");
+  importError.classList.add("hidden");
+
+  let success = 0;
+  let failed = 0;
+
+  for (let i = 0; i < selected.length; i++) {
+    const conv = selected[i];
+    // 截断消息到 500 条
+    const msgs = conv.messages.slice(-500).map((m) => {
+      if (typeof m.content === "string" && m.content.length > 30000) {
+        return { role: m.role, content: m.content.slice(0, 30000) };
+      }
+      return m;
+    });
+
+    try {
+      const res = await apiFetch(`/api/conversations/${conv.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: conv.id, title: conv.title, messages: msgs }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      // 添加到前端列表（延迟加载模式）
+      if (!conversations.find((c) => c.id === conv.id)) {
+        conversations.unshift({ id: conv.id, title: conv.title, messages: null });
+      }
+      success++;
+    } catch {
+      failed++;
+    }
+
+    // 更新进度
+    const pct = ((i + 1) / selected.length) * 100;
+    importProgressFill.style.width = pct + "%";
+    importProgressText.textContent = (i + 1) + "/" + selected.length + " 导入中...";
+  }
+
+  importDoBtn.disabled = false;
+  importProgressText.textContent = "";
+  importProgress.classList.add("hidden");
+  importProgressFill.style.width = "0%";
+
+  saveLocalCache();
+  renderChatList();
+
+  importResult.textContent = "导入完成：" + success + " 条成功" + (failed > 0 ? "，" + failed + " 条失败" : "");
+  importResult.className = failed > 0 ? "error" : "";
+  importResult.classList.remove("hidden");
+});
+
+// --- 总结生成 ---
+summaryGenerateBtn.addEventListener("click", async () => {
+  const checked = getCheckedSet();
+  const selectedIds = [];
+  const items = getImportListData();
+  items.forEach((c) => {
+    if (checked.has(c.id)) selectedIds.push(c.id);
+  });
+
+  if (selectedIds.length === 0) {
+    showImportError("请至少选择一条对话进行总结");
+    return;
+  }
+  if (selectedIds.length > 50) {
+    showImportError("最多选择 50 条对话进行总结，当前已选 " + selectedIds.length + " 条");
+    return;
+  }
+
+  // 「本次导入」范围下，未导入的对话需要先导入才能总结
+  if (importScope === "imported") {
+    const notImported = selectedIds.filter((id) => !conversations.find((c) => c.id === id));
+    if (notImported.length > 0) {
+      showImportError("请先导入选中的对话，再进行总结");
+      return;
+    }
+  }
+
+  summaryGenerateBtn.disabled = true;
+  summaryLoading.classList.remove("hidden");
+  importSummaryResult.classList.add("hidden");
+  importError.classList.add("hidden");
+  summaryApplyStatus.classList.add("hidden");
+
+  try {
+    const res = await apiFetch("/api/conversations/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationIds: selectedIds,
+        model: summaryModel.value,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "请求失败 (HTTP " + res.status + ")");
+    }
+
+    const data = await res.json();
+    summarySystemTextarea.value = data.suggestedSystem || "";
+    summaryMemoryTextarea.value = data.suggestedMemory || "";
+
+    if (data.notes) {
+      summaryNotesContent.textContent = data.notes;
+      summaryNotes.classList.remove("hidden");
+    } else {
+      summaryNotes.classList.add("hidden");
+    }
+
+    importSummaryResult.classList.remove("hidden");
+  } catch (err) {
+    showImportError("总结失败: " + err.message);
+  } finally {
+    summaryGenerateBtn.disabled = false;
+    summaryLoading.classList.add("hidden");
+  }
+});
+
+// --- 应用总结结果 ---
+summaryApplyBtn.addEventListener("click", async () => {
+  if (!confirm("确定应用？当前 Prompt 将被覆盖（服务端会自动备份旧版本）")) {
+    return;
+  }
+
+  summaryApplyBtn.disabled = true;
+  summaryApplyStatus.textContent = "应用中...";
+  summaryApplyStatus.classList.remove("hidden");
+
+  try {
+    const res = await apiFetch("/api/prompts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system: summarySystemTextarea.value,
+        memory: summaryMemoryTextarea.value,
+        backup: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "保存失败");
+    }
+
+    // 同步设置面板中的 textarea
+    editSystem.value = summarySystemTextarea.value;
+    editMemory.value = summaryMemoryTextarea.value;
+
+    summaryApplyStatus.textContent = "已应用，旧 Prompt 已备份";
+    setTimeout(() => summaryApplyStatus.classList.add("hidden"), 3000);
+  } catch (err) {
+    summaryApplyStatus.textContent = "应用失败: " + err.message;
+  } finally {
+    summaryApplyBtn.disabled = false;
+  }
+});
+
+// --- 取消总结结果 ---
+summaryCancelBtn.addEventListener("click", () => {
+  importSummaryResult.classList.add("hidden");
+});
 
 // ===== 初始化 =====
 renderChatList();
