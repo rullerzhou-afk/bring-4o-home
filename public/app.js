@@ -1654,6 +1654,7 @@ summaryGenerateBtn.addEventListener("click", async () => {
 
     importSummaryResult.classList.remove("hidden");
     importMergeResult.classList.add("hidden");
+    setTimeout(() => editImport.scrollTo({ top: editImport.scrollHeight, behavior: "smooth" }), 100);
   } catch (err) {
     showImportError("总结失败: " + err.message);
   } finally {
@@ -1699,6 +1700,7 @@ summaryMergeBtn.addEventListener("click", async () => {
 
     importSummaryResult.classList.add("hidden");
     importMergeResult.classList.remove("hidden");
+    setTimeout(() => editImport.scrollTo({ top: editImport.scrollHeight, behavior: "smooth" }), 100);
   } catch (err) {
     showImportError("融合失败: " + err.message);
   } finally {

@@ -2,5 +2,6 @@
 node_modules/
 logs/
 data/
+prompts/backups/
 CLAUDE.md
 .claude/
