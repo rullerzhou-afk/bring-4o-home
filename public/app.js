@@ -1081,7 +1081,7 @@ tabs.forEach((tab) => {
     editMemory.classList.toggle("hidden", target !== "memory");
     editConfig.classList.toggle("hidden", target !== "config");
     editImport.classList.toggle("hidden", target !== "import");
-    if (target === "import") loadSummaryModelSelector();
+    if (target === "import") initImportTab();
   });
 });
 
@@ -1288,6 +1288,23 @@ async function loadSummaryModelSelector() {
   }
 }
 
+function initImportTab() {
+  loadSummaryModelSelector();
+  // 始终显示列表区域；如果没有导入过文件，默认切到「全部本地」
+  importListSection.classList.remove("hidden");
+  if (lastImportedConvs.length === 0) {
+    importScope = "all";
+  }
+  // 同步 scope 按钮状态 + 禁用逻辑
+  document.querySelectorAll(".scope-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.scope === importScope);
+    if (btn.dataset.scope === "imported") {
+      btn.disabled = lastImportedConvs.length === 0;
+    }
+  });
+  renderImportList();
+}
+
 // --- 文件上传 ---
 importFileBtn.addEventListener("click", () => importFileInput.click());
 importDropZone.addEventListener("click", (e) => {
@@ -1362,9 +1379,10 @@ function handleImportFile(file) {
       importChecked = new Set(parsed.map((c) => c.id));
       allScopeChecked = new Set();
 
-      // 更新 scope 按钮
+      // 更新 scope 按钮（解锁「本次导入」）
       document.querySelectorAll(".scope-btn").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.scope === "imported");
+        if (btn.dataset.scope === "imported") btn.disabled = false;
       });
 
       renderImportList();
@@ -1585,6 +1603,8 @@ summaryGenerateBtn.addEventListener("click", async () => {
   }
 
   summaryGenerateBtn.disabled = true;
+  summaryGenerateBtn.dataset.origText = summaryGenerateBtn.textContent;
+  summaryGenerateBtn.textContent = "正在分析中...";
   summaryLoading.classList.remove("hidden");
   importSummaryResult.classList.add("hidden");
   importError.classList.add("hidden");
@@ -1609,6 +1629,16 @@ summaryGenerateBtn.addEventListener("click", async () => {
     summarySystemTextarea.value = data.suggestedSystem || "";
     summaryMemoryTextarea.value = data.suggestedMemory || "";
 
+    // 告知用户哪些对话因超限未被分析
+    if (data.skippedTitles && data.skippedTitles.length > 0) {
+      const names = data.skippedTitles.map((t) => "\u300c" + t + "\u300d").join("\u3001");
+      showImportError(
+        "已分析 " + data.analyzedCount + "/" + data.totalSelected +
+        " 条对话。以下对话因内容总量超限未纳入：" + names +
+        "。可减少选择数量或单独总结这些对话。"
+      );
+    }
+
     if (data.notes) {
       summaryNotesContent.textContent = data.notes;
       summaryNotes.classList.remove("hidden");
@@ -1621,6 +1651,7 @@ summaryGenerateBtn.addEventListener("click", async () => {
     showImportError("总结失败: " + err.message);
   } finally {
     summaryGenerateBtn.disabled = false;
+    summaryGenerateBtn.textContent = summaryGenerateBtn.dataset.origText || "总结选中对话，生成 Prompt 建议";
     summaryLoading.classList.add("hidden");
   }
 });

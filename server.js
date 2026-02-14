@@ -896,16 +896,43 @@ app.post("/api/conversations/summarize", async (req, res) => {
     readPromptFile(MEMORY_PATH),
   ]);
 
-  // 加载对话内容并采样
+  // 逐条加载对话并采样，超预算则停止，告知用户实际分析了多少条
+  const TOTAL_BUDGET = 24000; // 对话内容总字符预算
+  const MSG_SAMPLE = 10;      // 每条对话均匀采样消息数
+  const MSG_CHAR_LIMIT = 500; // 每条消息截取字符上限
+
+  function sampleEvenly(arr, count) {
+    if (arr.length <= count) return arr;
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      const idx = Math.round(i * (arr.length - 1) / (count - 1));
+      result.push(arr[idx]);
+    }
+    return result;
+  }
+
   const allSamples = [];
+  let usedChars = 0;
+  const analyzedTitles = [];
+  const skippedTitles = [];
+  let budgetHit = false;
+
   for (const id of ids) {
     const filePath = getConversationPath(id);
     if (!filePath) continue;
     try {
       const data = JSON.parse(await fsp.readFile(filePath, "utf-8"));
-      const msgs = (data.messages || []).slice(-10);
-      const sample = msgs
-        .filter((m) => m.role === "user" || m.role === "assistant")
+      const title = (data.title || "未命名").slice(0, 30);
+
+      if (budgetHit) {
+        skippedTitles.push(title);
+        continue;
+      }
+
+      const allMsgs = (data.messages || [])
+        .filter((m) => m.role === "user" || m.role === "assistant");
+      const sampled = sampleEvenly(allMsgs, MSG_SAMPLE);
+      const sample = sampled
         .map((m) => {
           const text =
             typeof m.content === "string"
@@ -913,10 +940,20 @@ app.post("/api/conversations/summarize", async (req, res) => {
               : Array.isArray(m.content)
                 ? m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")
                 : "";
-          return `${m.role === "user" ? "用户" : "AI"}: ${text.slice(0, 500)}`;
+          return `${m.role === "user" ? "用户" : "AI"}: ${text.slice(0, MSG_CHAR_LIMIT)}`;
         })
         .join("\n");
-      if (sample) allSamples.push(`### ${data.title || "未命名"}\n${sample}`);
+      if (!sample) continue;
+
+      const entry = `### ${title}\n${sample}`;
+      if (usedChars + entry.length > TOTAL_BUDGET) {
+        budgetHit = true;
+        skippedTitles.push(title);
+        continue;
+      }
+      allSamples.push(entry);
+      usedChars += entry.length;
+      analyzedTitles.push(title);
     } catch {
       // 跳过读取失败的对话
     }
@@ -933,9 +970,6 @@ app.post("/api/conversations/summarize", async (req, res) => {
   userContent += currentMemory || "（空）";
   userContent += "\n\n## 历史对话摘要\n\n";
   userContent += allSamples.join("\n\n---\n\n");
-  if (userContent.length > 30000) {
-    userContent = userContent.slice(0, 30000) + "\n\n[...内容已截断]";
-  }
 
   try {
     const client = getClientForModel(model);
@@ -968,6 +1002,9 @@ app.post("/api/conversations/summarize", async (req, res) => {
       suggestedSystem: String(parsed.suggestedSystem || ""),
       suggestedMemory: String(parsed.suggestedMemory || ""),
       notes: String(parsed.notes || ""),
+      analyzedCount: analyzedTitles.length,
+      totalSelected: ids.length,
+      skippedTitles,
     });
   } catch (err) {
     const message = formatProviderError(err);
