@@ -1335,12 +1335,20 @@ body {
   margin-bottom: 10px;
 }
 
-#summary-apply-actions {
+.summary-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 10px 0;
+}
+
+#summary-merge-actions,
+#merge-apply-actions {
   display: flex;
   gap: 10px;
 }
 
-#summary-apply-btn {
+#summary-merge-btn,
+#merge-apply-btn {
   background: var(--accent);
   color: white;
   border: none;
@@ -1351,8 +1359,36 @@ body {
   transition: opacity 0.15s;
 }
 
-#summary-apply-btn:hover {
+#summary-merge-btn:hover,
+#merge-apply-btn:hover {
   opacity: 0.9;
+}
+
+#summary-merge-btn:disabled,
+#merge-apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#summary-merge-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* 融合结果区 */
+#import-merge-result h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+#import-merge-result .prompt-editor {
+  height: 180px;
+  max-height: 30vh;
+  margin-bottom: 12px;
 }
 
 .secondary-btn {

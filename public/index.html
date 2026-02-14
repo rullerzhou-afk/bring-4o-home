@@ -159,20 +159,37 @@
             </div>
           </div>
 
-          <!-- 阶段 4：总结结果 -->
+          <!-- 阶段 4a：新发现预览 -->
           <div id="import-summary-result" class="hidden">
-            <h3>建议的系统提示词</h3>
-            <textarea id="summary-system" class="prompt-editor" placeholder="AI 将在这里生成建议的系统提示词..."></textarea>
-            <h3>建议的用户记忆</h3>
-            <textarea id="summary-memory" class="prompt-editor" placeholder="AI 将在这里生成建议的用户记忆..."></textarea>
+            <h3>发现的人格风格信息</h3>
+            <textarea id="summary-system-findings" class="prompt-editor" rows="5" placeholder="AI 从对话中提取的新人格/风格发现..."></textarea>
+            <h3>发现的用户画像信息</h3>
+            <textarea id="summary-memory-findings" class="prompt-editor" rows="5" placeholder="AI 从对话中提取的新用户事实..."></textarea>
             <div id="summary-notes" class="hidden">
-              <h4>变更说明</h4>
+              <h4>发现摘要</h4>
               <div id="summary-notes-content"></div>
             </div>
-            <div class="summary-warning">应用后将覆盖当前 Prompt（服务端会自动备份旧版本）</div>
-            <div id="summary-apply-actions">
-              <button id="summary-apply-btn" type="button">应用到设置</button>
+            <p class="summary-hint">你可以编辑上方内容，删除不需要的条目，然后点击融合。</p>
+            <div id="summary-merge-actions">
+              <button id="summary-merge-btn" type="button">融合到现有 Prompt</button>
               <button id="summary-cancel-btn" type="button" class="secondary-btn">取消</button>
+            </div>
+            <div id="summary-merge-loading" class="hidden">
+              <div class="spinner"></div>
+              <span>正在融合中...</span>
+            </div>
+          </div>
+
+          <!-- 阶段 4b：融合结果预览 -->
+          <div id="import-merge-result" class="hidden">
+            <h3>融合后的系统提示词</h3>
+            <textarea id="merge-system" class="prompt-editor" placeholder="融合后的系统提示词..."></textarea>
+            <h3>融合后的用户记忆</h3>
+            <textarea id="merge-memory" class="prompt-editor" placeholder="融合后的用户记忆..."></textarea>
+            <div class="summary-warning">应用后将覆盖当前 Prompt（服务端会自动备份旧版本）</div>
+            <div id="merge-apply-actions">
+              <button id="merge-apply-btn" type="button">应用到设置</button>
+              <button id="merge-back-btn" type="button" class="secondary-btn">返回修改</button>
             </div>
             <div id="summary-apply-status" class="hidden"></div>
           </div>

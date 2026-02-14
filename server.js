@@ -845,39 +845,67 @@ app.get("/api/models", async (req, res) => {
 });
 
 // ===== API: 对话总结生成 Prompt =====
-const SUMMARIZE_PROMPT = `你是一个对话分析专家。请分析以下用户与 AI 的多段历史对话，在用户提供的现有 Prompt 基础上修订完善。
+// 第一步：从对话中提取新发现（不改动现有 prompt）
+const SUMMARIZE_PROMPT = `你是一个对话分析专家。请分析用户与 AI 的多段历史对话，提取有价值的新发现。
 
-## 输入说明
-你会收到：
-1. 用户现有的系统提示词（可能为空）
-2. 用户现有的记忆文件（可能为空）
-3. 多段历史对话的摘要
+## 重要原则
+你的任务是**只提取新信息**，不要重写或修改用户现有的 Prompt 和记忆。
+你会收到用户现有的系统提示词和记忆文件作为参考——用来**去重**，避免重复提取已有的信息。
 
-## 任务一：修订系统提示词（suggestedSystem）
-在现有系统提示词基础上修订完善：
-- 保留现有 Prompt 中合理的部分
-- 根据对话中 AI 的回复风格、用户对 AI 的期望，补充或调整人格描述
-- 如果用户对 AI 有特殊要求（称呼、语气、风格），务必包含
-- 如果现有 Prompt 为空，则从零生成
-- 聚焦"人格"和"行为规范"，不要罗列功能说明
-- 200-500 字
+## 任务一：提取人格风格发现（newSystemFindings）
+从对话中提取关于 AI 应有的人格、风格、行为规范方面的新发现：
+- 用户对 AI 的称呼、语气、风格要求
+- 用户喜欢或讨厌的 AI 回复方式
+- 对话中体现的交流模式偏好
+- 每条以 "- " 开头，简明扼要
+- 如果该信息在现有 Prompt 中已存在，**跳过不提取**
+- 如果没有新发现，输出空字符串
 
-## 任务二：修订用户画像（suggestedMemory）
-在现有记忆文件基础上补充新信息：
-- 保留现有记忆中仍然有效的信息
-- 从对话中提取新的用户事实（身份、偏好、习惯、兴趣、工作等）
+## 任务二：提取用户画像发现（newMemoryFindings）
+从对话中提取关于用户本人的新事实：
+- 身份、职业、兴趣、偏好、习惯、经历等
 - 每条以 "- " 开头，不超过 30 字
-- 去重：如果新提取的信息与已有记忆重复，不要重复添加
+- 如果该信息在现有记忆中已存在，**跳过不提取**
+- 如果没有新发现，输出空字符串
 
-## 任务三：变更说明（notes）
-简短说明你做了哪些修改，3-5 条，帮助用户理解变更内容。
+## 任务三：发现摘要（notes）
+简短说明你发现了什么，2-5 条。
 
 请严格按以下 JSON 格式输出，不要输出其他内容：
 \`\`\`json
 {
-  "suggestedSystem": "完整的修订后系统提示词",
-  "suggestedMemory": "完整的修订后记忆内容",
-  "notes": "- 变更1\\n- 变更2\\n- 变更3"
+  "newSystemFindings": "- 发现1\\n- 发现2",
+  "newMemoryFindings": "- 用户事实1\\n- 用户事实2",
+  "notes": "- 摘要1\\n- 摘要2"
+}
+\`\`\``;
+
+// 第二步：将新发现融合到现有 prompt 中
+const MERGE_PROMPT = `你是一个 Prompt 融合专家。请将新发现的信息融合到用户现有的 Prompt 和记忆中。
+
+## 重要原则
+- 现有内容是用户精心调整过的，**必须保留原文的结构、风格和所有内容**
+- 你的工作是**追加和微调**，不是重写
+- 只在必要时做措辞调整以自然融入新信息
+- 如果新发现与现有内容矛盾，以新发现为准（更新而非删除）
+
+## 任务一：融合系统提示词（mergedSystem）
+将新的人格风格发现融合到现有系统提示词中：
+- 保持现有 Prompt 的整体结构和段落划分
+- 在合适的位置插入或补充新信息
+- 如果现有 Prompt 为空，则基于新发现从零生成
+
+## 任务二：融合用户记忆（mergedMemory）
+将新的用户画像发现追加到现有记忆中：
+- 保留全部现有记忆条目
+- 将新发现追加在末尾
+- 格式统一为 "- " 开头
+
+请严格按以下 JSON 格式输出，不要输出其他内容：
+\`\`\`json
+{
+  "mergedSystem": "融合后的完整系统提示词",
+  "mergedMemory": "融合后的完整记忆内容"
 }
 \`\`\``;
 
@@ -999,8 +1027,8 @@ app.post("/api/conversations/summarize", async (req, res) => {
     }
 
     res.json({
-      suggestedSystem: String(parsed.suggestedSystem || ""),
-      suggestedMemory: String(parsed.suggestedMemory || ""),
+      newSystemFindings: String(parsed.newSystemFindings || ""),
+      newMemoryFindings: String(parsed.newMemoryFindings || ""),
       notes: String(parsed.notes || ""),
       analyzedCount: analyzedTitles.length,
       totalSelected: ids.length,
@@ -1009,6 +1037,69 @@ app.post("/api/conversations/summarize", async (req, res) => {
   } catch (err) {
     const message = formatProviderError(err);
     console.error("Summarize API error:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// ===== API: 融合 Prompt =====
+app.post("/api/conversations/merge-prompt", async (req, res) => {
+  const { newSystemFindings, newMemoryFindings, model: reqModel } = req.body || {};
+
+  if (!newSystemFindings && !newMemoryFindings) {
+    return res.status(400).json({ error: "没有需要融合的新发现" });
+  }
+
+  const model = (typeof reqModel === "string" && reqModel.trim())
+    ? reqModel.trim()
+    : (await readConfig()).model;
+
+  const [currentSystem, currentMemory] = await Promise.all([
+    readPromptFile(SYSTEM_PATH),
+    readPromptFile(MEMORY_PATH),
+  ]);
+
+  let userContent = "## 现有系统提示词\n\n";
+  userContent += currentSystem || "（空）";
+  userContent += "\n\n## 现有用户记忆\n\n";
+  userContent += currentMemory || "（空）";
+  userContent += "\n\n## 新发现的人格风格信息\n\n";
+  userContent += newSystemFindings || "（无）";
+  userContent += "\n\n## 新发现的用户画像信息\n\n";
+  userContent += newMemoryFindings || "（无）";
+
+  try {
+    const client = getClientForModel(model);
+    console.log(`[merge-prompt] model: ${model}, content: ${userContent.length} chars`);
+    const response = await client.chat.completions.create({
+      model,
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: MERGE_PROMPT },
+        { role: "user", content: userContent },
+      ],
+    });
+
+    const output = response.choices[0]?.message?.content || "";
+
+    let parsed;
+    try {
+      const jsonMatch = output.match(/```json\s*([\s\S]*?)```/)
+                     || output.match(/\{[\s\S]*"mergedSystem"[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : output;
+      parsed = JSON.parse(jsonStr.trim());
+    } catch {
+      return res.status(502).json({
+        error: "模型返回格式异常，无法解析为 JSON。请重试或更换模型。",
+      });
+    }
+
+    res.json({
+      mergedSystem: String(parsed.mergedSystem || ""),
+      mergedMemory: String(parsed.mergedMemory || ""),
+    });
+  } catch (err) {
+    const message = formatProviderError(err);
+    console.error("Merge prompt API error:", message);
     res.status(500).json({ error: message });
   }
 });

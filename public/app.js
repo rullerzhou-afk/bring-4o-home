@@ -992,12 +992,18 @@ const summaryModel = document.getElementById("summary-model");
 const summaryGenerateBtn = document.getElementById("summary-generate-btn");
 const summaryLoading = document.getElementById("summary-loading");
 const importSummaryResult = document.getElementById("import-summary-result");
-const summarySystemTextarea = document.getElementById("summary-system");
-const summaryMemoryTextarea = document.getElementById("summary-memory");
+const summarySystemFindings = document.getElementById("summary-system-findings");
+const summaryMemoryFindings = document.getElementById("summary-memory-findings");
 const summaryNotes = document.getElementById("summary-notes");
 const summaryNotesContent = document.getElementById("summary-notes-content");
-const summaryApplyBtn = document.getElementById("summary-apply-btn");
+const summaryMergeBtn = document.getElementById("summary-merge-btn");
 const summaryCancelBtn = document.getElementById("summary-cancel-btn");
+const summaryMergeLoading = document.getElementById("summary-merge-loading");
+const importMergeResult = document.getElementById("import-merge-result");
+const mergeSystemTextarea = document.getElementById("merge-system");
+const mergeMemoryTextarea = document.getElementById("merge-memory");
+const mergeApplyBtn = document.getElementById("merge-apply-btn");
+const mergeBackBtn = document.getElementById("merge-back-btn");
 const summaryApplyStatus = document.getElementById("summary-apply-status");
 
 // 滑块实时显示数值
@@ -1626,8 +1632,8 @@ summaryGenerateBtn.addEventListener("click", async () => {
     }
 
     const data = await res.json();
-    summarySystemTextarea.value = data.suggestedSystem || "";
-    summaryMemoryTextarea.value = data.suggestedMemory || "";
+    summarySystemFindings.value = data.newSystemFindings || "";
+    summaryMemoryFindings.value = data.newMemoryFindings || "";
 
     // 告知用户哪些对话因超限未被分析
     if (data.skippedTitles && data.skippedTitles.length > 0) {
@@ -1647,6 +1653,7 @@ summaryGenerateBtn.addEventListener("click", async () => {
     }
 
     importSummaryResult.classList.remove("hidden");
+    importMergeResult.classList.add("hidden");
   } catch (err) {
     showImportError("总结失败: " + err.message);
   } finally {
@@ -1656,13 +1663,58 @@ summaryGenerateBtn.addEventListener("click", async () => {
   }
 });
 
-// --- 应用总结结果 ---
-summaryApplyBtn.addEventListener("click", async () => {
+// --- 第二步：融合到现有 Prompt ---
+summaryMergeBtn.addEventListener("click", async () => {
+  const sysFindings = summarySystemFindings.value.trim();
+  const memFindings = summaryMemoryFindings.value.trim();
+  if (!sysFindings && !memFindings) {
+    showImportError("没有需要融合的新发现");
+    return;
+  }
+
+  summaryMergeBtn.disabled = true;
+  summaryMergeBtn.textContent = "融合中...";
+  summaryMergeLoading.classList.remove("hidden");
+  summaryApplyStatus.classList.add("hidden");
+
+  try {
+    const res = await apiFetch("/api/conversations/merge-prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        newSystemFindings: sysFindings,
+        newMemoryFindings: memFindings,
+        model: summaryModel.value,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "融合失败 (HTTP " + res.status + ")");
+    }
+
+    const data = await res.json();
+    mergeSystemTextarea.value = data.mergedSystem || "";
+    mergeMemoryTextarea.value = data.mergedMemory || "";
+
+    importSummaryResult.classList.add("hidden");
+    importMergeResult.classList.remove("hidden");
+  } catch (err) {
+    showImportError("融合失败: " + err.message);
+  } finally {
+    summaryMergeBtn.disabled = false;
+    summaryMergeBtn.textContent = "融合到现有 Prompt";
+    summaryMergeLoading.classList.add("hidden");
+  }
+});
+
+// --- 第三步：应用融合结果 ---
+mergeApplyBtn.addEventListener("click", async () => {
   if (!confirm("确定应用？当前 Prompt 将被覆盖（服务端会自动备份旧版本）")) {
     return;
   }
 
-  summaryApplyBtn.disabled = true;
+  mergeApplyBtn.disabled = true;
   summaryApplyStatus.textContent = "应用中...";
   summaryApplyStatus.classList.remove("hidden");
 
@@ -1671,8 +1723,8 @@ summaryApplyBtn.addEventListener("click", async () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        system: summarySystemTextarea.value,
-        memory: summaryMemoryTextarea.value,
+        system: mergeSystemTextarea.value,
+        memory: mergeMemoryTextarea.value,
         backup: true,
       }),
     });
@@ -1682,22 +1734,28 @@ summaryApplyBtn.addEventListener("click", async () => {
       throw new Error(errData.error || "保存失败");
     }
 
-    // 同步设置面板中的 textarea
-    editSystem.value = summarySystemTextarea.value;
-    editMemory.value = summaryMemoryTextarea.value;
+    editSystem.value = mergeSystemTextarea.value;
+    editMemory.value = mergeMemoryTextarea.value;
 
     summaryApplyStatus.textContent = "已应用，旧 Prompt 已备份";
     setTimeout(() => summaryApplyStatus.classList.add("hidden"), 3000);
   } catch (err) {
     summaryApplyStatus.textContent = "应用失败: " + err.message;
   } finally {
-    summaryApplyBtn.disabled = false;
+    mergeApplyBtn.disabled = false;
   }
 });
 
-// --- 取消总结结果 ---
+// --- 返回修改发现 ---
+mergeBackBtn.addEventListener("click", () => {
+  importMergeResult.classList.add("hidden");
+  importSummaryResult.classList.remove("hidden");
+});
+
+// --- 取消 ---
 summaryCancelBtn.addEventListener("click", () => {
   importSummaryResult.classList.add("hidden");
+  importMergeResult.classList.add("hidden");
 });
 
 // ===== 初始化 =====
