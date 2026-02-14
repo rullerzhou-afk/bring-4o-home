@@ -57,14 +57,21 @@ npm start
 | 变量 | 必需 | 说明 |
 |------|------|------|
 | `OPENAI_API_KEY` | 三选一 | OpenAI API 密钥 |
+| `OPENAI_BASE_URL` | 否 | OpenAI 兼容网关地址（默认官方） |
 | `ARK_API_KEY` | 三选一 | 火山引擎方舟平台 API key |
+| `ARK_BASE_URL` | 否 | 火山方舟 API 地址（默认 `https://ark.cn-beijing.volces.com/api/v3`） |
 | `OPENROUTER_API_KEY` | 三选一 | OpenRouter API key |
-| `ADMIN_TOKEN` | 否 | 鉴权 token；未设置时仅允许本机访问 |
+| `OPENROUTER_BASE_URL` | 否 | OpenRouter API 地址（默认 `https://openrouter.ai/api/v1`） |
+| `OPENROUTER_SITE_URL` | 否 | OpenRouter 请求头 `HTTP-Referer`（建议填你实际访问地址） |
+| `OPENROUTER_APP_NAME` | 否 | OpenRouter 请求头 `X-Title`（默认 `bring-4o-home`） |
+| `ADMIN_TOKEN` | 否 | 鉴权 token；跨机器访问时必须设置，未设置时仅允许本机访问 |
 | `SERPER_API_KEY` | 否 | Serper.dev 搜索 API key；配置后自动启用联网搜索 |
 | `HOST` / `PORT` | 否 | 监听地址，默认 `127.0.0.1:3000` |
 | `MODEL` | 否 | 默认模型，fallback `gpt-4o` |
-| `AUTO_LEARN_MODEL` | 否 | 自动记忆提取模型，默认 `gpt-4o-mini` |
+| `AUTO_LEARN_MODEL` | 否 | 自动记忆提取模型；建议留空，系统按已配置渠道自动选择 |
 | `AUTO_LEARN_COOLDOWN` | 否 | 自动记忆冷却秒数，默认 `300` |
+
+> 如果要从其他机器访问本服务，请先设置 `ADMIN_TOKEN`。
 
 ## 模型推荐
 
@@ -129,9 +136,10 @@ npm start
 |-----------|----------------------|------|
 | OpenAI | `gpt-4o-mini` | 便宜够用，提取质量高 |
 | OpenRouter | `openai/gpt-4o-mini` | 同上，走 OpenRouter 通道 |
-| 火山引擎 | `doubao-1-5-lite-32k` | 豆包轻量版，国内直连 |
+| 火山引擎 | `doubao-1-5-lite-32k-250115` | 豆包轻量版，国内直连 |
 
 > 也可以通过环境变量 `AUTO_LEARN_MODEL` 手动指定任意模型。
+> 只配置 OpenRouter 时，若手动指定 OpenAI 系模型（如 `gpt-4o-mini`），建议写成 `openai/gpt-4o-mini`；或直接留空让系统自动选择。
 
 ## 对话搜索
 

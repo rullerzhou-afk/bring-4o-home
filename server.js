@@ -13,22 +13,32 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 
 // ===== API 客户端（三选一，至少配一个）=====
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "").trim();
 const openaiClient = OPENAI_API_KEY
-  ? new OpenAI({ apiKey: OPENAI_API_KEY })
+  ? new OpenAI({
+      apiKey: OPENAI_API_KEY,
+      ...(OPENAI_BASE_URL ? { baseURL: OPENAI_BASE_URL } : {}),
+    })
   : null;
 
 const ARK_API_KEY = process.env.ARK_API_KEY || "";
-const ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
+const ARK_BASE_URL = process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3";
 const arkClient = ARK_API_KEY
   ? new OpenAI({ apiKey: ARK_API_KEY, baseURL: ARK_BASE_URL })
   : null;
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+const OPENROUTER_SITE_URL = (process.env.OPENROUTER_SITE_URL || "").trim();
+const OPENROUTER_APP_NAME = (process.env.OPENROUTER_APP_NAME || "bring-4o-home").trim();
+const OPENROUTER_HEADERS = {};
+if (OPENROUTER_SITE_URL) OPENROUTER_HEADERS["HTTP-Referer"] = OPENROUTER_SITE_URL;
+if (OPENROUTER_APP_NAME) OPENROUTER_HEADERS["X-Title"] = OPENROUTER_APP_NAME;
 const openrouterClient = OPENROUTER_API_KEY
   ? new OpenAI({
       apiKey: OPENROUTER_API_KEY,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: { "HTTP-Referer": "http://localhost:3000" },
+      baseURL: OPENROUTER_BASE_URL,
+      ...(Object.keys(OPENROUTER_HEADERS).length > 0 ? { defaultHeaders: OPENROUTER_HEADERS } : {}),
     })
   : null;
 
@@ -53,8 +63,27 @@ function getClientForModel(model) {
   return arkClient;
 }
 
+function resolveDefaultModel() {
+  if (process.env.MODEL) return process.env.MODEL;
+  if (openaiClient) return "gpt-4o";
+  if (openrouterClient) return "openai/gpt-4o-mini";
+  if (arkClient) return "doubao-1-5-lite-32k-250115";
+  return "gpt-4o";
+}
+
+function formatProviderError(err) {
+  const status = err?.status ?? err?.response?.status;
+  const code = err?.code || err?.error?.code;
+  const detail = err?.error?.message || err?.message || "Unknown server error";
+  const parts = [];
+  if (status) parts.push(`HTTP ${status}`);
+  if (code) parts.push(`code=${code}`);
+  parts.push(detail);
+  return parts.join(" | ");
+}
+
 const DEFAULT_CONFIG = {
-  model: process.env.MODEL || "gpt-4o",
+  model: resolveDefaultModel(),
   temperature: 1,
   presence_penalty: 0,
   frequency_penalty: 0,
@@ -117,8 +146,30 @@ async function executeWebSearch(query) {
 }
 
 // ===== Auto-Learn =====
+function normalizeAutoLearnModel(model) {
+  const raw = (model || "").trim();
+  if (!raw) return "";
+
+  // OpenRouter-only model format can be normalized back to official OpenAI format.
+  if (raw.includes("/")) {
+    const [provider, shortId] = raw.split("/", 2);
+    if (provider.toLowerCase() === "openai" && !openrouterClient && openaiClient && shortId) {
+      return shortId;
+    }
+    return raw;
+  }
+
+  // If user sets an OpenAI-family model while only OpenRouter is configured, auto-prefix it.
+  const isOpenAIStyle = /^(gpt|o[0-9]|chatgpt)/i.test(raw);
+  if (isOpenAIStyle && !openaiClient && openrouterClient) {
+    return `openai/${raw}`;
+  }
+  return raw;
+}
+
 function resolveAutoLearnModel() {
-  if (process.env.AUTO_LEARN_MODEL) return process.env.AUTO_LEARN_MODEL;
+  const envModel = normalizeAutoLearnModel(process.env.AUTO_LEARN_MODEL);
+  if (envModel) return envModel;
   if (openaiClient) return "gpt-4o-mini";
   if (openrouterClient) return "openai/gpt-4o-mini";
   if (arkClient) return "doubao-1-5-lite-32k-250115";
@@ -460,7 +511,7 @@ app.use("/api", (req, res, next) => {
   if (!isLoopbackIp(req.ip)) {
     return res
       .status(403)
-      .json({ error: "Forbidden for non-local access. Set ADMIN_TOKEN to enable remote access." });
+      .json({ error: `Forbidden for non-local access from ${req.ip}. Set ADMIN_TOKEN to enable remote access.` });
   }
   return next();
 });
@@ -728,7 +779,7 @@ app.get("/api/models", async (req, res) => {
         }
         openaiModels.sort();
       } catch (err) {
-        console.error("获取 OpenAI 模型列表失败:", err.message);
+        console.error("获取 OpenAI 模型列表失败:", formatProviderError(err));
       }
     }
 
@@ -743,7 +794,7 @@ app.get("/api/models", async (req, res) => {
         }
         arkModels.sort();
       } catch (err) {
-        console.error("获取火山引擎模型列表失败:", err.message);
+        console.error("获取火山引擎模型列表失败:", formatProviderError(err));
       }
     }
 
@@ -759,7 +810,7 @@ app.get("/api/models", async (req, res) => {
         }
         orModels.sort();
       } catch (err) {
-        console.error("获取 OpenRouter 模型列表失败:", err.message);
+        console.error("获取 OpenRouter 模型列表失败:", formatProviderError(err));
       }
     }
 
@@ -956,8 +1007,8 @@ app.post("/api/chat", async (req, res) => {
       if (!res.writableEnded) res.end();
       return;
     }
-    const message = err?.message || "Unknown server error";
-    console.error("OpenAI API error:", message);
+    const message = formatProviderError(err);
+    console.error("Model API error:", message);
     if (startedSse && !res.writableEnded) {
       res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
       res.end();

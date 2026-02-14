@@ -600,8 +600,15 @@ async function triggerAutoLearn(conv) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: recent }),
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const errMsg = await readErrorMessage(res).catch(() => `HTTP ${res.status}`);
+      console.warn("Auto-learn failed:", errMsg);
+      return;
+    }
     const data = await res.json();
+    if (data.skipped) {
+      console.info("Auto-learn skipped:", data.skipped);
+    }
     if (data.learned && data.learned.length > 0) {
       showLearnToast(data.learned);
     }
