@@ -1,6 +1,6 @@
 {
   "name": "gpt-4o-chat",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "GPT-4o 私人对话界面",
   "main": "server.js",
   "scripts": {

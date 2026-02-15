@@ -1340,8 +1340,12 @@ importFileInput.addEventListener("change", (e) => {
 });
 
 function handleImportFile(file) {
+  if (file.name.endsWith(".zip")) {
+    showImportError("请先解压 ZIP 文件，然后上传里面的 conversations.json");
+    return;
+  }
   if (!file.name.endsWith(".json")) {
-    showImportError("请上传 .json 格式的文件");
+    showImportError("请上传 .json 格式的文件（ChatGPT 导出的 conversations.json）");
     return;
   }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GPT-4o</title>
+  <title>Bring 4o Home</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -18,6 +18,10 @@
       <div id="chat-list"></div>
       <button id="theme-toggle" title="切换主题"></button>
       <button id="settings-btn" title="设置">设置</button>
+      <div id="sidebar-footer">
+        <a href="https://github.com/rullerzhou-afk/bring-4o-home" target="_blank" rel="noopener">Bring 4o Home</a>
+        <span>v1.1.0</span>
+      </div>
     </aside>
 
     <!-- 主区域 -->
@@ -123,6 +127,15 @@
             </div>
             <input type="file" id="import-file-input" accept=".json" hidden />
           </div>
+          <details id="import-help">
+            <summary>不知道怎么导出 ChatGPT 数据？</summary>
+            <ol>
+              <li>打开 <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener">ChatGPT 设置</a> &rarr; Data controls &rarr; Export data</li>
+              <li>点击 Export，等邮件通知后下载 ZIP 文件</li>
+              <li>解压 ZIP，找到里面的 <strong>conversations.json</strong></li>
+              <li>把这个 JSON 文件拖到上方区域即可</li>
+            </ol>
+          </details>
           <div id="import-error" class="hidden"></div>
 
           <!-- 阶段 2：对话列表 -->

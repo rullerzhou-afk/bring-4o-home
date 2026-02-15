@@ -687,6 +687,26 @@ body {
   color: var(--text-primary);
 }
 
+#sidebar-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px 0;
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+#sidebar-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+#sidebar-footer a:hover {
+  color: var(--accent);
+}
+
 /* ===== 设置弹窗 ===== */
 .hidden { display: none !important; }
 
@@ -1047,6 +1067,27 @@ body {
 #import-drop-zone.drag-over {
   border-color: var(--accent);
   background: rgba(16, 163, 127, 0.06);
+}
+
+#import-help {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+#import-help summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+#import-help ol {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  line-height: 1.8;
+}
+
+#import-help a {
+  color: var(--accent);
 }
 
 .drop-zone-content svg {
