@@ -10,6 +10,7 @@ const editMemory = document.getElementById("edit-memory");
 const editConfig = document.getElementById("edit-config");
 const editImport = document.getElementById("edit-import");
 const savePromptsBtn = document.getElementById("save-prompts");
+const resetDefaultsBtn = document.getElementById("reset-defaults");
 const saveStatus = document.getElementById("save-status");
 const tabs = document.querySelectorAll("#settings-tabs .tab");
 
@@ -157,6 +158,42 @@ savePromptsBtn.addEventListener("click", async () => {
     setTimeout(() => (saveStatus.textContent = ""), 2000);
   } catch (err) {
     saveStatus.textContent = "保存失败: " + err.message;
+  }
+});
+
+// 恢复默认
+resetDefaultsBtn.addEventListener("click", async () => {
+  if (!confirm("确定要恢复所有设置为默认值吗？\n\n人格指令、长期记忆和模型参数将被重置，已导入的对话不受影响。")) return;
+  saveStatus.textContent = "恢复中...";
+  try {
+    const res = await apiFetch("/api/settings/reset", { method: "POST" });
+    if (!res.ok) throw new Error(await readErrorMessage(res));
+    const data = await res.json();
+
+    // 更新 prompt 编辑器
+    editSystem.value = data.system;
+    editMemory.value = data.memory;
+
+    // 更新 config sliders
+    state.currentConfig = data.config;
+    configTemp.value = data.config.temperature;
+    tempVal.textContent = data.config.temperature;
+    configPP.value = data.config.presence_penalty;
+    ppVal.textContent = data.config.presence_penalty;
+    configFP.value = data.config.frequency_penalty;
+    fpVal.textContent = data.config.frequency_penalty;
+    configCtx.value = data.config.context_window;
+    ctxVal.textContent = data.config.context_window;
+
+    // 同步模型下拉框
+    configModel.value = data.config.model;
+    modelSelector.value = data.config.model;
+    currentModelDisplay.textContent = "当前模型: " + data.config.model;
+
+    saveStatus.textContent = "已恢复默认";
+    setTimeout(() => (saveStatus.textContent = ""), 2000);
+  } catch (err) {
+    saveStatus.textContent = "重置失败: " + err.message;
   }
 });
 

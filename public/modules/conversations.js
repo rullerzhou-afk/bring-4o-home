@@ -398,13 +398,14 @@ export function renderChatList() {
   items = [...items].sort((a, b) => Number(b.id) - Number(a.id));
   const groups = buildGroups(items);
 
-  // 初始化：往年默认折叠
-  for (const g of groups) {
-    if (g.type === "year" && !state._groupsInitialized) {
-      state.collapsedGroups.add(g.key);
+  // 初始化：只展开当月，其余默认折叠
+  if (!state._groupsInitialized && groups.length > 0) {
+    const curMonthKey = `cur-${new Date().getMonth()}`;
+    for (const g of groups) {
+      if (g.key !== curMonthKey) state.collapsedGroups.add(g.key);
     }
+    state._groupsInitialized = true;
   }
-  if (groups.length > 0) state._groupsInitialized = true;
 
   for (const g of groups) {
     if (g.type === "month" || g.type === "quarter") {
