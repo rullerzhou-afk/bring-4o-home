@@ -2,6 +2,18 @@
 
 ## 2026-02-19
 
+### Refactoring — 大文件拆分 (P3)
+- **后端 server.js (1447行) → 16 个模块文件**
+  - `server.js` 精简为 36 行薄入口（Express 中间件挂载 + 启动）
+  - `lib/` 7 个工具模块：clients、config、prompts、validators、auth、search、auto-learn
+  - `routes/` 8 个路由模块：chat、conversations、models、config、prompts、images、auto-learn、summarize
+- **前端 app.js (2187行) → 10 个 ES Module 文件**
+  - `public/app.js` 精简为 204 行薄入口（事件绑定 + 初始化）
+  - `public/modules/` 9 个模块：state、api、render、images、conversations、chat、settings、theme、import
+  - 共享可变状态通过 `state` 对象封装，避免 ES Module 导出不可变绑定问题
+  - `getCurrentConv()` 放入 state.js 打破 conversations ↔ render 循环依赖
+  - `index.html` 改用 `<script type="module">` 加载
+
 ### New Features
 - **导入 ChatGPT 图片支持 (P1)**：拖入完整导出文件夹即可恢复对话中的真实图片
   - 后端新增 `POST /api/images` 图片上传端点（multer, MIME 白名单, 10MB 限制）
