@@ -1,3 +1,39 @@
+// ===== Toast 通知 =====
+function showToast(message, type = "error") {
+  if (!message) return;
+  let container = document.getElementById("global-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "global-toast-container";
+    container.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 32px));pointer-events:none;";
+    (document.body || document.documentElement).appendChild(container);
+  }
+  const toast = document.createElement("div");
+  const bg = type === "warning" ? "#b45309" : "#dc2626";
+  toast.style.cssText = `background:${bg};color:#fff;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.4;box-shadow:0 6px 18px rgba(0,0,0,.2);opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease;pointer-events:auto;`;
+  toast.textContent = String(message);
+  container.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = "1";
+    toast.style.transform = "translateY(0)";
+  });
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(8px)";
+    setTimeout(() => toast.remove(), 200);
+  }, 4000);
+}
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event?.reason;
+  const message = reason instanceof Error
+    ? reason.message
+    : typeof reason === "string"
+      ? reason
+      : "发生未处理异常，请稍后重试";
+  showToast(message, "error");
+});
+
 // ===== 时间格式化 =====
 function formatMetaTime(ts) {
   if (!ts) return "";
@@ -116,6 +152,9 @@ async function readErrorMessage(response) {
 }
 
 async function apiFetch(url, options = {}, allowRetry = true) {
+  if (navigator.onLine === false) {
+    throw new Error("网络已断开，请检查网络连接后重试");
+  }
   const finalOptions = {
     ...options,
     headers: withAuthHeaders(options.headers || {}),
@@ -163,13 +202,17 @@ async function saveConversationToServer(conv) {
   const prev = _saveQueue.get(id) || Promise.resolve();
   const next = prev.then(async () => {
     try {
-      await apiFetch(`/api/conversations/${id}`, {
+      const res = await apiFetch(`/api/conversations/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: conv.id, title: conv.title, messages: conv.messages }),
       });
+      if (res && !res.ok) {
+        showToast("对话保存失败，将在下次操作时重试", "warning");
+      }
     } catch (err) {
       console.error("保存到服务器失败:", err);
+      showToast("对话保存失败，将在下次操作时重试", "warning");
     }
   });
   _saveQueue.set(id, next);
@@ -864,6 +907,7 @@ async function sendMessage() {
     let contentChanged = false;
     let reasoningChanged = false;
     let rafPending = false;
+    let sseParseErrors = 0;
 
     function scheduleRender() {
       if (rafPending) return;
@@ -902,6 +946,7 @@ async function sendMessage() {
 
         try {
           const parsed = JSON.parse(data);
+          sseParseErrors = 0;
           if (parsed.error) {
             assistantMsg.content += `\n\n**错误:** ${parsed.error}`;
             contentChanged = true;
@@ -919,7 +964,11 @@ async function sendMessage() {
             contentChanged = true;
           }
         } catch (e) {
-          // 忽略解析错误
+          sseParseErrors += 1;
+          if (sseParseErrors >= 5) {
+            showToast("流式数据解析异常，部分内容可能丢失");
+            break;
+          }
         }
       }
 

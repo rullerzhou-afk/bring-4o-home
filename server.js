@@ -636,6 +636,37 @@ app.post("/api/memory/auto-learn", async (req, res) => {
     return res.status(400).json({ error: "messages required" });
   }
 
+  const learnAllowedRoles = new Set(["user", "assistant", "system"]);
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (!isPlainObject(msg)) {
+      return res.status(400).json({ error: `messages[${i}] must be an object` });
+    }
+    if (typeof msg.role !== "string" || !learnAllowedRoles.has(msg.role)) {
+      return res.status(400).json({ error: `messages[${i}].role must be one of: user, assistant, system` });
+    }
+    if (!(typeof msg.content === "string" || Array.isArray(msg.content))) {
+      return res.status(400).json({ error: `messages[${i}].content must be a string or array` });
+    }
+    let contentLength = 0;
+    if (typeof msg.content === "string") {
+      contentLength = msg.content.length;
+    } else {
+      for (let j = 0; j < msg.content.length; j++) {
+        const part = msg.content[j];
+        if (!isPlainObject(part)) {
+          return res.status(400).json({ error: `messages[${i}].content[${j}] must be an object` });
+        }
+        if (part.type === "text" && typeof part.text === "string") {
+          contentLength += part.text.length;
+        }
+      }
+    }
+    if (contentLength > 20_000) {
+      return res.status(400).json({ error: `messages[${i}] content too large (max 20000 chars)` });
+    }
+  }
+
   const recentMessages = messages.slice(-4);
   const totalLength = recentMessages.reduce((sum, m) => {
     const text =

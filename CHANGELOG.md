@@ -28,6 +28,14 @@
 - 修复灯箱重复创建：快速连点图片会叠加多个遮罩层
 - 修复图片 base64 转换失败后静默吞错，改为降级显示 `[图片不可用]`
 
+### Error Handling & Reliability (P2)
+- 新增全局 `showToast` 通知组件：右下角弹出，支持 error/warning 类型，4 秒自动消失
+- 新增 `unhandledrejection` 全局捕获，未处理的异步错误自动弹出 toast 提示
+- SSE 流式解析错误从静默忽略改为计数器，连续 5 次失败时提示用户
+- `apiFetch` 新增 `navigator.onLine` 离线检测，断网时立即提示而非等待超时
+- `saveConversationToServer` 新增 `res.ok` 校验，HTTP 错误和网络异常均弹 toast 提示
+- `/api/memory/auto-learn` 新增严格输入校验：role 白名单、content 类型检查、单条内容 20000 字符上限
+
 ## 2026-02-15
 
 ### New Features
