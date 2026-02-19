@@ -187,113 +187,250 @@ export async function batchDelete() {
 
 export const searchResults = { value: null }; // null = 正常模式，数组 = 搜索模式
 
-export function getTimeGroupLabel(convId) {
+// ---- 分组辅助 ----
+
+function getConvYearMonth(convId) {
   const ts = parseInt(convId, 10);
-  if (isNaN(ts)) return "";
-  const date = new Date(ts);
+  if (isNaN(ts)) return null;
+  const d = new Date(ts);
+  return { year: d.getFullYear(), month: d.getMonth() }; // month 0-based
+}
+
+/** 构建层级分组结构，返回有序数组 */
+function buildGroups(items) {
   const now = new Date();
   const curYear = now.getFullYear();
-  const convYear = date.getFullYear();
-
-  if (convYear < curYear) return `${convYear}`;
-
-  const convMonth = date.getMonth();
   const curQuarter = Math.floor(now.getMonth() / 3);
-  const convQuarter = Math.floor(convMonth / 3);
 
-  if (convQuarter < curQuarter) {
-    const start = convQuarter * 3 + 1;
-    const end = start + 2;
-    return `${start}-${end}月`;
+  // 按年月聚合
+  const yearMap = new Map(); // year -> Map<month, conv[]>
+  for (const item of items) {
+    const ym = getConvYearMonth(item.id);
+    if (!ym) continue;
+    if (!yearMap.has(ym.year)) yearMap.set(ym.year, new Map());
+    const mMap = yearMap.get(ym.year);
+    if (!mMap.has(ym.month)) mMap.set(ym.month, []);
+    mMap.get(ym.month).push(item);
   }
-  return `${convMonth + 1}月`;
+
+  const groups = []; // { type, label, key, children?, chats? }
+
+  // 当年：按月/季度作为顶级分组
+  const curYearMonths = yearMap.get(curYear);
+  if (curYearMonths) {
+    // 按月倒序
+    const months = [...curYearMonths.keys()].sort((a, b) => b - a);
+    // 先收集当前季度内的月份（单独显示）
+    const curQuarterMonths = months.filter((m) => Math.floor(m / 3) === curQuarter);
+    const pastQuarterMonths = months.filter((m) => Math.floor(m / 3) < curQuarter);
+
+    for (const m of curQuarterMonths) {
+      groups.push({
+        type: "month",
+        label: `${m + 1}月`,
+        key: `cur-${m}`,
+        chats: curYearMonths.get(m),
+      });
+    }
+
+    // 过去的季度按季度范围合并
+    const quarterMap = new Map(); // quarter -> conv[]
+    for (const m of pastQuarterMonths) {
+      const q = Math.floor(m / 3);
+      if (!quarterMap.has(q)) quarterMap.set(q, []);
+      quarterMap.get(q).push(...curYearMonths.get(m));
+    }
+    const quarters = [...quarterMap.keys()].sort((a, b) => b - a);
+    for (const q of quarters) {
+      const start = q * 3 + 1;
+      const end = start + 2;
+      groups.push({
+        type: "quarter",
+        label: `${start}-${end}月`,
+        key: `cur-q${q}`,
+        chats: quarterMap.get(q),
+      });
+    }
+    yearMap.delete(curYear);
+  }
+
+  // 往年：年 -> 月两级
+  const pastYears = [...yearMap.keys()].sort((a, b) => b - a);
+  for (const y of pastYears) {
+    const mMap = yearMap.get(y);
+    const monthGroups = [];
+    const sortedMonths = [...mMap.keys()].sort((a, b) => b - a);
+    let totalCount = 0;
+    for (const m of sortedMonths) {
+      const chats = mMap.get(m);
+      totalCount += chats.length;
+      monthGroups.push({
+        label: `${m + 1}月`,
+        key: `${y}-${m}`,
+        chats,
+      });
+    }
+    groups.push({
+      type: "year",
+      label: `${y}`,
+      key: `${y}`,
+      count: totalCount,
+      children: monthGroups,
+    });
+  }
+
+  return groups;
 }
+
+// ---- 渲染单个对话项 ----
+
+function renderChatItem(item, nested) {
+  const convId = item.id;
+  const div = document.createElement("div");
+  div.className = "chat-item" + (convId === state.currentConvId ? " active" : "") + (nested ? " nested" : "");
+
+  if (state.manageMode) {
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "batch-checkbox";
+    cb.checked = state.selectedIds.has(convId);
+    cb.onclick = (e) => e.stopPropagation();
+    cb.onchange = () => {
+      if (cb.checked) state.selectedIds.add(convId);
+      else state.selectedIds.delete(convId);
+      updateBatchCount();
+    };
+    div.appendChild(cb);
+  }
+
+  const title = document.createElement("span");
+  title.className = "chat-item-title";
+  title.textContent = item.title;
+  div.appendChild(title);
+
+  if (searchResults.value !== null && item.snippet) {
+    const snippetEl = document.createElement("div");
+    snippetEl.className = "chat-item-snippet";
+    snippetEl.textContent = item.snippet;
+    div.appendChild(snippetEl);
+  }
+
+  if (!state.manageMode) {
+    const delBtn = document.createElement("button");
+    delBtn.className = "chat-item-delete";
+    delBtn.innerHTML = "&times;";
+    delBtn.title = "删除对话";
+    delBtn.onclick = (e) => deleteConversation(convId, e);
+    div.appendChild(delBtn);
+  }
+
+  div.onclick = () => {
+    if (state.manageMode) {
+      const cb = div.querySelector(".batch-checkbox");
+      cb.checked = !cb.checked;
+      if (cb.checked) state.selectedIds.add(convId);
+      else state.selectedIds.delete(convId);
+      updateBatchCount();
+    } else {
+      switchConversation(convId);
+    }
+  };
+
+  return div;
+}
+
+// ---- 创建分组标题元素 ----
+
+function createGroupHeader(label, key, count, cssClass) {
+  const collapsed = state.collapsedGroups.has(key);
+  const header = document.createElement("div");
+  header.className = cssClass;
+
+  const chevron = document.createElement("span");
+  chevron.className = "group-chevron" + (collapsed ? " collapsed" : "");
+  chevron.textContent = "▾";
+  header.appendChild(chevron);
+
+  const text = document.createTextNode(label);
+  header.appendChild(text);
+
+  if (count != null) {
+    const countEl = document.createElement("span");
+    countEl.className = "group-count";
+    countEl.textContent = count;
+    header.appendChild(countEl);
+  }
+
+  header.onclick = () => {
+    if (state.collapsedGroups.has(key)) {
+      state.collapsedGroups.delete(key);
+    } else {
+      state.collapsedGroups.add(key);
+    }
+    renderChatList();
+  };
+
+  return { header, collapsed };
+}
+
+// ---- 主渲染函数 ----
 
 export function renderChatList() {
   chatListEl.innerHTML = "";
   let items = searchResults.value !== null ? searchResults.value : state.conversations;
 
-  if (searchResults.value !== null && items.length === 0) {
-    const empty = document.createElement("div");
-    empty.style.cssText = "color: var(--text-secondary); font-size: 13px; text-align: center; padding: 16px;";
-    empty.textContent = "没有找到匹配的对话";
-    chatListEl.appendChild(empty);
+  // 搜索模式：扁平列表，无分组
+  if (searchResults.value !== null) {
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "color: var(--text-secondary); font-size: 13px; text-align: center; padding: 16px;";
+      empty.textContent = "没有找到匹配的对话";
+      chatListEl.appendChild(empty);
+      return;
+    }
+    for (const item of items) {
+      chatListEl.appendChild(renderChatItem(item, false));
+    }
     return;
   }
 
-  // 非搜索模式下确保按时间倒序
-  if (searchResults.value === null) {
-    items = [...items].sort((a, b) => Number(b.id) - Number(a.id));
+  // 非搜索模式：按时间倒序，层级分组
+  items = [...items].sort((a, b) => Number(b.id) - Number(a.id));
+  const groups = buildGroups(items);
+
+  // 初始化：往年默认折叠
+  for (const g of groups) {
+    if (g.type === "year" && !state._groupsInitialized) {
+      state.collapsedGroups.add(g.key);
+    }
   }
+  if (groups.length > 0) state._groupsInitialized = true;
 
-  let lastGroup = null;
-
-  items.forEach((item) => {
-    const convId = item.id;
-    const convTitle = item.title;
-
-    // 非搜索模式下插入时间分组标题
-    if (searchResults.value === null) {
-      const group = getTimeGroupLabel(convId);
-      if (group && group !== lastGroup) {
-        lastGroup = group;
-        const header = document.createElement("div");
-        header.className = "chat-list-group";
-        header.textContent = group;
-        chatListEl.appendChild(header);
+  for (const g of groups) {
+    if (g.type === "month" || g.type === "quarter") {
+      // 当年的月份/季度：单级折叠
+      const { header, collapsed } = createGroupHeader(g.label, g.key, g.chats.length, "chat-list-group");
+      chatListEl.appendChild(header);
+      if (!collapsed) {
+        for (const item of g.chats) {
+          chatListEl.appendChild(renderChatItem(item, false));
+        }
+      }
+    } else if (g.type === "year") {
+      // 往年：年 -> 月两级
+      const { header, collapsed } = createGroupHeader(g.label, g.key, g.count, "chat-list-group");
+      chatListEl.appendChild(header);
+      if (!collapsed) {
+        for (const sub of g.children) {
+          const { header: subHeader, collapsed: subCollapsed } = createGroupHeader(sub.label, sub.key, sub.chats.length, "chat-list-subgroup");
+          chatListEl.appendChild(subHeader);
+          if (!subCollapsed) {
+            for (const item of sub.chats) {
+              chatListEl.appendChild(renderChatItem(item, true));
+            }
+          }
+        }
       }
     }
-
-    const div = document.createElement("div");
-    div.className = "chat-item" + (convId === state.currentConvId ? " active" : "");
-
-    if (state.manageMode) {
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.className = "batch-checkbox";
-      cb.checked = state.selectedIds.has(convId);
-      cb.onclick = (e) => e.stopPropagation();
-      cb.onchange = () => {
-        if (cb.checked) state.selectedIds.add(convId);
-        else state.selectedIds.delete(convId);
-        updateBatchCount();
-      };
-      div.appendChild(cb);
-    }
-
-    const title = document.createElement("span");
-    title.className = "chat-item-title";
-    title.textContent = convTitle;
-
-    div.appendChild(title);
-
-    if (searchResults.value !== null && item.snippet) {
-      const snippetEl = document.createElement("div");
-      snippetEl.className = "chat-item-snippet";
-      snippetEl.textContent = item.snippet;
-      div.appendChild(snippetEl);
-    }
-
-    if (!state.manageMode) {
-      const delBtn = document.createElement("button");
-      delBtn.className = "chat-item-delete";
-      delBtn.innerHTML = "&times;";
-      delBtn.title = "删除对话";
-      delBtn.onclick = (e) => deleteConversation(convId, e);
-      div.appendChild(delBtn);
-    }
-
-    div.onclick = () => {
-      if (state.manageMode) {
-        const cb = div.querySelector(".batch-checkbox");
-        cb.checked = !cb.checked;
-        if (cb.checked) state.selectedIds.add(convId);
-        else state.selectedIds.delete(convId);
-        updateBatchCount();
-      } else {
-        switchConversation(convId);
-      }
-    };
-    chatListEl.appendChild(div);
-  });
+  }
 }

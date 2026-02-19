@@ -20,6 +20,7 @@ export const state = {
   streamFollowRafId: null,
   manageMode: false, // 管理模式（批量选择）
   selectedIds: new Set(), // 管理模式选中的对话 ID
+  collapsedGroups: new Set(), // 折叠的分组 key（如 "2025"、"2025-3"、"cur-1"）
   streamFollowObserver: null,
 };
 
