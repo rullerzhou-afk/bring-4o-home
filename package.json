@@ -9,6 +9,7 @@
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "multer": "^2.0.2",
     "openai": "^4.82.0"
   }
 }

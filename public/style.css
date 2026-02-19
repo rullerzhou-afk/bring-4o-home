@@ -147,6 +147,15 @@ body {
   overflow-y: auto;
 }
 
+.chat-list-group {
+  padding: 12px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
 .chat-item {
   padding: 8px 12px;
   border-radius: 8px;
@@ -687,6 +696,80 @@ body {
   color: var(--text-primary);
 }
 
+/* ===== 管理按钮 ===== */
+#manage-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  width: 100%;
+  text-align: center;
+}
+#manage-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+/* ===== 批量操作栏 ===== */
+#batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+#batch-bar.hidden { display: none; }
+#batch-select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+#batch-count {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+}
+#batch-delete-btn {
+  background: #ff6b6b;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+#batch-delete-btn:hover { background: #e55a5a; }
+#batch-delete-btn:disabled { opacity: 0.4; cursor: default; }
+#batch-cancel-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+#batch-cancel-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+/* ===== 批量勾选框 ===== */
+.batch-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent, #5b9bd5);
+}
+
 #sidebar-footer {
   display: flex;
   justify-content: space-between;
@@ -1101,19 +1184,37 @@ body {
   margin-bottom: 12px;
 }
 
-#import-file-btn {
+.import-btn-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#import-file-btn,
+#import-folder-btn {
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  padding: 8px 20px;
+  padding: 8px 16px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: border-color 0.15s;
 }
 
-#import-file-btn:hover {
+#import-file-btn:hover,
+#import-folder-btn:hover {
   border-color: var(--accent);
+}
+
+#import-folder-btn {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+#import-folder-btn:hover {
+  opacity: 0.9;
 }
 
 #import-parsing {

@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-02-19
+
+### New Features
+- **导入 ChatGPT 图片支持 (P1)**：拖入完整导出文件夹即可恢复对话中的真实图片
+  - 后端新增 `POST /api/images` 图片上传端点（multer, MIME 白名单, 10MB 限制）
+  - 图片存储于 `data/images/`，对话 JSON 引用服务端路径，发送模型前自动转 base64
+  - `import-worker.js` 全面重构：支持 `multimodal_text` 消息、DALL-E `tool` 角色、`sediment://` / `file-service://` 资源指针
+  - 前端支持文件夹拖拽和 `webkitdirectory` 文件夹选择，自动建立 `fileId → File` 映射并批量上传
+  - 仅上传 `conversations.json` 时图片显示占位文本，引导用户上传完整文件夹
+- **批量删除对话**：侧边栏新增「管理」模式，支持全选/多选批量删除（最多 2000 条）
+- **对话列表按时间分组**：侧边栏按倒序排列，自动插入时间分组标题
+  - 当前季度内按月显示（如「2月」「1月」）
+  - 过去季度按范围（如「1-3月」）
+  - 往年仅显示年份（如「2025」「2024」）
+  - 跨年自动降级，无需额外处理
+
+### Bug Fixes
+- 修复导入的图片对话继续聊天报错「Only user messages can have multi-part content」：允许 assistant 消息携带数组内容，发送模型前自动展平为纯文本
+- 修复多模态消息渲染 bug：循环内 `textContent` 被覆盖导致只显示最后一段文本
+
 ## 2026-02-15
 
 ### New Features

@@ -29,9 +29,12 @@ let conversations = loadLocalConversations();
 let currentConvId = null;
 let isStreaming = false;
 let pendingImages = [];
+let currentConfig = null;
 let activeStreamAbort = null; // 当前流式请求的 AbortController
 let streamAbortedBySwitch = false; // 标记是否因切换对话而中止
 let streamFollowRafId = null;
+let manageMode = false; // 管理模式（批量选择）
+let selectedIds = new Set(); // 管理模式选中的对话 ID
 let streamFollowObserver = null;
 
 const messagesEl = document.getElementById("messages");
@@ -46,6 +49,12 @@ const imagePreview = document.getElementById("image-preview");
 const inputWrapper = document.getElementById("input-wrapper");
 const modelSelector = document.getElementById("model-selector");
 const welcomeGreetingEl = document.getElementById("welcome-greeting");
+const manageBtn = document.getElementById("manage-btn");
+const batchBar = document.getElementById("batch-bar");
+const batchSelectAll = document.getElementById("batch-select-all");
+const batchCount = document.getElementById("batch-count");
+const batchDeleteBtn = document.getElementById("batch-delete-btn");
+const batchCancelBtn = document.getElementById("batch-cancel-btn");
 
 const WELCOME_GREETINGS = [
   "今天想聊点什么？",
@@ -251,11 +260,76 @@ function deleteConversation(id, e) {
   renderChatList();
 }
 
+// ===== 批量管理 =====
+function toggleManageMode() {
+  manageMode = !manageMode;
+  selectedIds.clear();
+  batchBar.classList.toggle("hidden", !manageMode);
+  manageBtn.textContent = manageMode ? "取消管理" : "管理";
+  batchSelectAll.checked = false;
+  updateBatchCount();
+  renderChatList();
+}
+
+function updateBatchCount() {
+  batchCount.textContent = `已选 ${selectedIds.size} 个`;
+  batchDeleteBtn.disabled = selectedIds.size === 0;
+  // 同步全选勾选框状态
+  const visibleIds = (searchResults !== null ? searchResults : conversations).map((c) => c.id);
+  batchSelectAll.checked = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+}
+
+async function batchDelete() {
+  if (selectedIds.size === 0) return;
+  const count = selectedIds.size;
+  if (!confirm(`确定要删除选中的 ${count} 个对话吗？此操作不可撤销。`)) return;
+
+  const ids = [...selectedIds];
+  // 乐观更新：先从前端移除
+  conversations = conversations.filter((c) => !selectedIds.has(c.id));
+  if (selectedIds.has(currentConvId)) {
+    currentConvId = conversations.length > 0 ? conversations[0].id : null;
+    renderMessages();
+  }
+  saveLocalCache();
+  selectedIds.clear();
+  toggleManageMode();
+
+  // 后端批量删除
+  apiFetch("/api/conversations/batch-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  }).catch(() => {});
+}
+
 let searchResults = null; // null = 正常模式，数组 = 搜索模式
+
+function getTimeGroupLabel(convId) {
+  const ts = parseInt(convId, 10);
+  if (isNaN(ts)) return "";
+  const date = new Date(ts);
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const convYear = date.getFullYear();
+
+  if (convYear < curYear) return `${convYear}`;
+
+  const convMonth = date.getMonth();
+  const curQuarter = Math.floor(now.getMonth() / 3);
+  const convQuarter = Math.floor(convMonth / 3);
+
+  if (convQuarter < curQuarter) {
+    const start = convQuarter * 3 + 1;
+    const end = start + 2;
+    return `${start}-${end}月`;
+  }
+  return `${convMonth + 1}月`;
+}
 
 function renderChatList() {
   chatListEl.innerHTML = "";
-  const items = searchResults !== null ? searchResults : conversations;
+  let items = searchResults !== null ? searchResults : conversations;
 
   if (searchResults !== null && items.length === 0) {
     const empty = document.createElement("div");
@@ -265,22 +339,49 @@ function renderChatList() {
     return;
   }
 
+  // 非搜索模式下确保按时间倒序
+  if (searchResults === null) {
+    items = [...items].sort((a, b) => Number(b.id) - Number(a.id));
+  }
+
+  let lastGroup = null;
+
   items.forEach((item) => {
     const convId = item.id;
     const convTitle = item.title;
 
+    // 非搜索模式下插入时间分组标题
+    if (searchResults === null) {
+      const group = getTimeGroupLabel(convId);
+      if (group && group !== lastGroup) {
+        lastGroup = group;
+        const header = document.createElement("div");
+        header.className = "chat-list-group";
+        header.textContent = group;
+        chatListEl.appendChild(header);
+      }
+    }
+
     const div = document.createElement("div");
     div.className = "chat-item" + (convId === currentConvId ? " active" : "");
+
+    if (manageMode) {
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "batch-checkbox";
+      cb.checked = selectedIds.has(convId);
+      cb.onclick = (e) => e.stopPropagation();
+      cb.onchange = () => {
+        if (cb.checked) selectedIds.add(convId);
+        else selectedIds.delete(convId);
+        updateBatchCount();
+      };
+      div.appendChild(cb);
+    }
 
     const title = document.createElement("span");
     title.className = "chat-item-title";
     title.textContent = convTitle;
-
-    const delBtn = document.createElement("button");
-    delBtn.className = "chat-item-delete";
-    delBtn.innerHTML = "&times;";
-    delBtn.title = "删除对话";
-    delBtn.onclick = (e) => deleteConversation(convId, e);
 
     div.appendChild(title);
 
@@ -291,8 +392,26 @@ function renderChatList() {
       div.appendChild(snippetEl);
     }
 
-    div.appendChild(delBtn);
-    div.onclick = () => switchConversation(convId);
+    if (!manageMode) {
+      const delBtn = document.createElement("button");
+      delBtn.className = "chat-item-delete";
+      delBtn.innerHTML = "&times;";
+      delBtn.title = "删除对话";
+      delBtn.onclick = (e) => deleteConversation(convId, e);
+      div.appendChild(delBtn);
+    }
+
+    div.onclick = () => {
+      if (manageMode) {
+        const cb = div.querySelector(".batch-checkbox");
+        cb.checked = !cb.checked;
+        if (cb.checked) selectedIds.add(convId);
+        else selectedIds.delete(convId);
+        updateBatchCount();
+      } else {
+        switchConversation(convId);
+      }
+    };
     chatListEl.appendChild(div);
   });
 }
@@ -316,30 +435,36 @@ function renderMessages() {
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
-    if (msg.role === "user") {
-      if (Array.isArray(msg.content)) {
-        const imgContainer = document.createElement("div");
-        imgContainer.className = "message-images";
-        let textContent = "";
-        msg.content.forEach((part) => {
-          if (part.type === "text") {
-            textContent = part.text;
-          } else if (part.type === "image_url") {
-            const img = document.createElement("img");
-            img.src = part.image_url.url;
-            img.onclick = () => showLightbox(part.image_url.url);
-            imgContainer.appendChild(img);
-          }
-        });
-        if (imgContainer.children.length > 0) bubble.appendChild(imgContainer);
-        if (textContent) {
-          const p = document.createElement("p");
-          p.textContent = textContent;
-          bubble.appendChild(p);
+    if (Array.isArray(msg.content)) {
+      // 多模态消息（user 或 assistant 都可能有图片）
+      const imgContainer = document.createElement("div");
+      imgContainer.className = "message-images";
+      const textParts = [];
+      msg.content.forEach((part) => {
+        if (part.type === "text") {
+          textParts.push(part.text);
+        } else if (part.type === "image_url") {
+          const img = document.createElement("img");
+          img.src = part.image_url.url;
+          img.onclick = () => showLightbox(part.image_url.url);
+          imgContainer.appendChild(img);
         }
-      } else {
-        bubble.textContent = msg.content;
+      });
+      if (imgContainer.children.length > 0) bubble.appendChild(imgContainer);
+      const combinedText = textParts.join("\n").trim();
+      if (combinedText) {
+        if (msg.role === "user") {
+          const p = document.createElement("p");
+          p.textContent = combinedText;
+          bubble.appendChild(p);
+        } else {
+          const contentContainer = document.createElement("div");
+          contentContainer.innerHTML = renderMarkdown(combinedText);
+          bubble.appendChild(contentContainer);
+        }
       }
+    } else if (msg.role === "user") {
+      bubble.textContent = msg.content;
     } else {
       // 历史消息的思考链折叠块
       if (msg.reasoning) {
@@ -699,7 +824,8 @@ async function sendMessage() {
   let reasoningContent = "";
 
   try {
-    const apiMessages = conv.messages.slice(0, -1).map((m) => ({
+    const maxCtx = currentConfig?.context_window ?? 50;
+    const apiMessages = conv.messages.slice(0, -1).slice(-maxCtx).map((m) => ({
       role: m.role,
       content: m === userMessage && outboundUserContent ? outboundUserContent : m.content,
     }));
@@ -910,6 +1036,21 @@ inputEl.addEventListener("keydown", (e) => {
 sendBtn.addEventListener("click", sendMessage);
 newChatBtn.addEventListener("click", createConversation);
 
+// ===== 批量管理事件 =====
+manageBtn.addEventListener("click", toggleManageMode);
+batchCancelBtn.addEventListener("click", toggleManageMode);
+batchDeleteBtn.addEventListener("click", batchDelete);
+batchSelectAll.addEventListener("change", () => {
+  const visibleItems = searchResults !== null ? searchResults : conversations;
+  if (batchSelectAll.checked) {
+    visibleItems.forEach((c) => selectedIds.add(c.id));
+  } else {
+    visibleItems.forEach((c) => selectedIds.delete(c.id));
+  }
+  updateBatchCount();
+  renderChatList();
+});
+
 // ===== 图片上传事件 =====
 uploadBtn.addEventListener("click", () => imageInput.click());
 imageInput.addEventListener("change", (e) => {
@@ -968,15 +1109,20 @@ const configModel = document.getElementById("config-model");
 const configTemp = document.getElementById("config-temp");
 const configPP = document.getElementById("config-pp");
 const configFP = document.getElementById("config-fp");
+const configCtx = document.getElementById("config-ctx");
 const tempVal = document.getElementById("temp-val");
 const ppVal = document.getElementById("pp-val");
 const fpVal = document.getElementById("fp-val");
+const ctxVal = document.getElementById("ctx-val");
 
 // 导入与总结控件
 const editImport = document.getElementById("edit-import");
 const importDropZone = document.getElementById("import-drop-zone");
 const importFileInput = document.getElementById("import-file-input");
+const importFolderInput = document.getElementById("import-folder-input");
 const importFileBtn = document.getElementById("import-file-btn");
+const importFolderBtn = document.getElementById("import-folder-btn");
+const importParsingText = document.getElementById("import-parsing-text");
 const importParsing = document.getElementById("import-parsing");
 const importError = document.getElementById("import-error");
 const importListSection = document.getElementById("import-list-section");
@@ -1006,10 +1152,14 @@ const mergeApplyBtn = document.getElementById("merge-apply-btn");
 const mergeBackBtn = document.getElementById("merge-back-btn");
 const summaryApplyStatus = document.getElementById("summary-apply-status");
 
+// 导入图片文件映射：fileId → File 对象
+let importImageMap = new Map();
+
 // 滑块实时显示数值
 configTemp.addEventListener("input", () => (tempVal.textContent = configTemp.value));
 configPP.addEventListener("input", () => (ppVal.textContent = configPP.value));
 configFP.addEventListener("input", () => (fpVal.textContent = configFP.value));
+configCtx.addEventListener("input", () => (ctxVal.textContent = configCtx.value));
 
 const currentModelDisplay = document.getElementById("current-model-display");
 
@@ -1024,6 +1174,7 @@ async function loadConfigPanel() {
     if (!configRes.ok) throw new Error(await readErrorMessage(configRes));
     const models = await modelsRes.json();
     const config = await configRes.json();
+    currentConfig = config;
 
     // 显示当前模型
     currentModelDisplay.textContent = "当前模型: " + config.model;
@@ -1045,6 +1196,8 @@ async function loadConfigPanel() {
     ppVal.textContent = configPP.value;
     configFP.value = config.frequency_penalty ?? 0;
     fpVal.textContent = configFP.value;
+    configCtx.value = config.context_window ?? 50;
+    ctxVal.textContent = config.context_window ?? 50;
   } catch (err) {
     console.error("加载配置失败:", err);
   }
@@ -1115,9 +1268,18 @@ savePromptsBtn.addEventListener("click", async () => {
         temperature: parseFloat(configTemp.value),
         presence_penalty: parseFloat(configPP.value),
         frequency_penalty: parseFloat(configFP.value),
+        context_window: parseInt(configCtx.value, 10),
       }),
     });
     if (!configRes.ok) throw new Error(await readErrorMessage(configRes));
+    currentConfig = {
+      ...(currentConfig || {}),
+      model: configModel.value,
+      temperature: parseFloat(configTemp.value),
+      presence_penalty: parseFloat(configPP.value),
+      frequency_penalty: parseFloat(configFP.value),
+      context_window: parseInt(configCtx.value, 10),
+    };
 
     // 同步顶栏模型选择器
     if (modelSelector.value !== configModel.value) {
@@ -1141,6 +1303,7 @@ async function loadModelSelector() {
     if (!modelsRes.ok || !configRes.ok) return;
     const models = await modelsRes.json();
     const config = await configRes.json();
+    currentConfig = config;
 
     modelSelector.innerHTML = "";
     models.forEach((m) => {
@@ -1168,6 +1331,7 @@ modelSelector.addEventListener("change", async () => {
       body: JSON.stringify(config),
     });
     if (!saveRes.ok) throw new Error("保存失败");
+    currentConfig = config;
 
     // 同步设置面板的模型下拉框
     if (configModel.value !== modelSelector.value) {
@@ -1313,11 +1477,7 @@ function initImportTab() {
 
 // --- 文件上传 ---
 importFileBtn.addEventListener("click", () => importFileInput.click());
-importDropZone.addEventListener("click", (e) => {
-  if (e.target === importDropZone || e.target.closest(".drop-zone-content")) {
-    importFileInput.click();
-  }
-});
+importFolderBtn.addEventListener("click", () => importFolderInput.click());
 
 importDropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
@@ -1329,6 +1489,22 @@ importDropZone.addEventListener("dragleave", () => {
 importDropZone.addEventListener("drop", (e) => {
   e.preventDefault();
   importDropZone.classList.remove("drag-over");
+
+  // 检查是否拖入了文件夹
+  const items = e.dataTransfer.items;
+  if (items && items.length > 0) {
+    const entries = [];
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+      if (entry) entries.push(entry);
+    }
+    // 如果包含目录，按文件夹导入处理
+    if (entries.some((ent) => ent.isDirectory)) {
+      handleImportFolder(entries);
+      return;
+    }
+  }
+  // 普通文件拖入
   const file = e.dataTransfer.files[0];
   if (file) handleImportFile(file);
 });
@@ -1339,7 +1515,96 @@ importFileInput.addEventListener("change", (e) => {
   importFileInput.value = "";
 });
 
-function handleImportFile(file) {
+importFolderInput.addEventListener("change", (e) => {
+  const files = Array.from(e.target.files);
+  if (files.length > 0) handleImportFolderFiles(files);
+  importFolderInput.value = "";
+});
+
+// --- 文件夹导入辅助 ---
+function readAllEntries(dirEntry) {
+  return new Promise((resolve) => {
+    const results = [];
+    const reader = dirEntry.createReader();
+    function readBatch() {
+      reader.readEntries((entries) => {
+        if (entries.length === 0) { resolve(results); return; }
+        results.push(...entries);
+        readBatch();
+      }, () => resolve(results));
+    }
+    readBatch();
+  });
+}
+
+async function collectFilesFromEntries(entries) {
+  const files = [];
+  const queue = [...entries];
+  while (queue.length > 0) {
+    const entry = queue.shift();
+    if (entry.isFile) {
+      const file = await new Promise((resolve) => entry.file(resolve));
+      files.push({ file, path: entry.fullPath });
+    } else if (entry.isDirectory) {
+      const children = await readAllEntries(entry);
+      queue.push(...children);
+    }
+  }
+  return files;
+}
+
+async function handleImportFolder(entries) {
+  showImportParsing("正在读取文件夹...");
+  try {
+    const allFiles = await collectFilesFromEntries(entries);
+    handleImportFolderFiles(allFiles.map((f) => f.file));
+  } catch (err) {
+    hideImportParsing();
+    showImportError("读取文件夹失败: " + (err.message || "未知错误"));
+  }
+}
+
+function handleImportFolderFiles(files) {
+  // 找到 conversations.json
+  const jsonFile = files.find((f) => f.name === "conversations.json");
+  if (!jsonFile) {
+    showImportError("文件夹中未找到 conversations.json，请确认是 ChatGPT 导出的文件夹");
+    return;
+  }
+
+  // 建立图片文件映射：fileId → File
+  const imageExts = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
+  importImageMap = new Map();
+  for (const f of files) {
+    const ext = f.name.split(".").pop().toLowerCase();
+    if (!imageExts.has(ext)) continue;
+    // 文件名格式: file_xxx-sanitized.png 或 file_xxx-uuid.png
+    // 提取 file_xxx 作为 ID（去掉后缀部分）
+    const match = f.name.match(/^(file[-_][a-f0-9]+)/i);
+    if (match) {
+      importImageMap.set(match[1], f);
+    }
+  }
+
+  showImportParsing("正在解析 conversations.json（找到 " + importImageMap.size + " 张图片）...");
+  handleImportFile(jsonFile, importImageMap.size > 0);
+}
+
+function showImportParsing(text) {
+  importError.classList.add("hidden");
+  importParsing.classList.remove("hidden");
+  importParsingText.textContent = text || "正在解析，请稍候...";
+  importDropZone.querySelector(".drop-zone-content").classList.add("hidden");
+  importListSection.classList.add("hidden");
+  importSummaryResult.classList.add("hidden");
+}
+
+function hideImportParsing() {
+  importParsing.classList.add("hidden");
+  importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
+}
+
+function handleImportFile(file, hasImages) {
   if (file.name.endsWith(".zip")) {
     showImportError("请先解压 ZIP 文件，然后上传里面的 conversations.json");
     return;
@@ -1349,20 +1614,15 @@ function handleImportFile(file) {
     return;
   }
 
-  // 显示解析中
-  importError.classList.add("hidden");
-  importParsing.classList.remove("hidden");
-  importDropZone.querySelector(".drop-zone-content").classList.add("hidden");
-  importListSection.classList.add("hidden");
-  importSummaryResult.classList.add("hidden");
+  // 显示解析中（如果不是从文件夹入口调用的，才需要手动显示）
+  if (!hasImages) showImportParsing();
 
   const reader = new FileReader();
   reader.onload = function () {
     const worker = new Worker("import-worker.js");
     worker.onmessage = function (e) {
       worker.terminate();
-      importParsing.classList.add("hidden");
-      importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
+      hideImportParsing();
 
       if (e.data.error) {
         showImportError(e.data.error);
@@ -1406,11 +1666,10 @@ function handleImportFile(file) {
       importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
       showImportError("解析失败: " + (err.message || "未知错误"));
     };
-    worker.postMessage(reader.result);
+    worker.postMessage(JSON.stringify({ json: reader.result, hasImages: !!hasImages }));
   };
   reader.onerror = function () {
-    importParsing.classList.add("hidden");
-    importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
+    hideImportParsing();
     showImportError("文件读取失败");
   };
   reader.readAsText(file);
@@ -1524,6 +1783,55 @@ function formatImportDate(ts) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
 }
 
+// --- 上传图片到服务端 ---
+async function uploadImportImage(fileId) {
+  const file = importImageMap.get(fileId);
+  if (!file) return null;
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const res = await apiFetch("/api/images", { method: "POST", body: formData });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.url; // "/images/xxx.png"
+  } catch {
+    return null;
+  }
+}
+
+// 处理对话消息中的图片引用：上传图片并替换 asset_pointer 为 image_url
+async function processConvImages(conv, progressCb) {
+  const imageIds = conv.imageFileIds || [];
+  if (imageIds.length === 0 || importImageMap.size === 0) return conv.messages;
+
+  // 批量上传该对话引用的图片，建立 fileId → serverUrl 映射
+  const urlMap = new Map();
+  for (let i = 0; i < imageIds.length; i++) {
+    const fid = imageIds[i];
+    if (urlMap.has(fid)) continue;
+    const url = await uploadImportImage(fid);
+    if (url) urlMap.set(fid, url);
+    if (progressCb) progressCb(i + 1, imageIds.length);
+  }
+
+  // 替换消息中的 image_asset_pointer
+  return conv.messages.map((m) => {
+    if (!Array.isArray(m.content)) return m;
+    const newParts = m.content.map((part) => {
+      if (part.type === "image_asset_pointer" && part.file_id) {
+        const url = urlMap.get(part.file_id);
+        if (url) {
+          return { type: "image_url", image_url: { url } };
+        }
+        // 图片上传失败，显示占位文本
+        return { type: "text", text: "[图片: 上传失败，文件不可用]" };
+      }
+      return part;
+    });
+    return { role: m.role, content: newParts };
+  });
+}
+
 // --- 导入选中对话 ---
 importDoBtn.addEventListener("click", async () => {
   const selected = lastImportedConvs.filter((c) => importChecked.has(c.id));
@@ -1542,8 +1850,19 @@ importDoBtn.addEventListener("click", async () => {
 
   for (let i = 0; i < selected.length; i++) {
     const conv = selected[i];
+
+    // 上传该对话引用的图片并替换引用
+    let msgs;
+    try {
+      msgs = await processConvImages(conv, (done, total) => {
+        importProgressText.textContent = (i + 1) + "/" + selected.length + " 上传图片 " + done + "/" + total;
+      });
+    } catch {
+      msgs = conv.messages;
+    }
+
     // 截断消息到 500 条
-    const msgs = conv.messages.slice(-500).map((m) => {
+    msgs = msgs.slice(-500).map((m) => {
       if (typeof m.content === "string" && m.content.length > 30000) {
         return { role: m.role, content: m.content.slice(0, 30000) };
       }
@@ -1557,7 +1876,6 @@ importDoBtn.addEventListener("click", async () => {
         body: JSON.stringify({ id: conv.id, title: conv.title, messages: msgs }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      // 添加到前端列表（延迟加载模式）
       if (!conversations.find((c) => c.id === conv.id)) {
         conversations.unshift({ id: conv.id, title: conv.title, messages: null });
       }
@@ -1566,7 +1884,6 @@ importDoBtn.addEventListener("click", async () => {
       failed++;
     }
 
-    // 更新进度
     const pct = ((i + 1) / selected.length) * 100;
     importProgressFill.style.width = pct + "%";
     importProgressText.textContent = (i + 1) + "/" + selected.length + " 导入中...";
@@ -1576,6 +1893,7 @@ importDoBtn.addEventListener("click", async () => {
   importProgressText.textContent = "";
   importProgress.classList.add("hidden");
   importProgressFill.style.width = "0%";
+  importImageMap = new Map(); // 释放图片文件引用
 
   saveLocalCache();
   renderChatList();

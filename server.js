@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const OpenAI = require("openai");
+const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const fsp = fs.promises;
@@ -244,6 +245,10 @@ const CONVERSATIONS_DIR = path.join(__dirname, "data", "conversations");
 if (!fs.existsSync(CONVERSATIONS_DIR)) {
   fs.mkdirSync(CONVERSATIONS_DIR, { recursive: true });
 }
+const IMAGES_DIR = path.join(__dirname, "data", "images");
+if (!fs.existsSync(IMAGES_DIR)) {
+  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+}
 
 function getConversationPath(id) {
   if (!/^\d{10,16}$/.test(id)) return null;
@@ -288,6 +293,7 @@ function normalizeConfig(raw = {}) {
     temperature: clampNumber(merged.temperature, 0, 2, DEFAULT_CONFIG.temperature),
     presence_penalty: clampNumber(merged.presence_penalty, -2, 2, DEFAULT_CONFIG.presence_penalty),
     frequency_penalty: clampNumber(merged.frequency_penalty, -2, 2, DEFAULT_CONFIG.frequency_penalty),
+    context_window: clampNumber(merged.context_window, 4, 500, 50),
     ...(merged.top_p !== undefined ? { top_p: clampNumber(merged.top_p, 0, 1, 1) } : {}),
   };
 }
@@ -333,6 +339,7 @@ function validateConfigPatch(body) {
     "top_p",
     "presence_penalty",
     "frequency_penalty",
+    "context_window",
   ]);
   const unknownKey = Object.keys(body).find((key) => !allowedKeys.has(key));
   if (unknownKey) {
@@ -353,6 +360,7 @@ function validateConfigPatch(body) {
     ["top_p", 0, 1],
     ["presence_penalty", -2, 2],
     ["frequency_penalty", -2, 2],
+    ["context_window", 4, 500],
   ];
   for (const [field, min, max] of numericFields) {
     if (body[field] === undefined) continue;
@@ -410,8 +418,8 @@ function validateMessages(messages) {
   if (!Array.isArray(messages)) {
     return { ok: false, error: "`messages` must be an array." };
   }
-  if (messages.length === 0 || messages.length > 100) {
-    return { ok: false, error: "`messages` length must be between 1 and 100." };
+  if (messages.length === 0 || messages.length > 500) {
+    return { ok: false, error: "`messages` length must be between 1 and 500." };
   }
 
   const allowedRoles = new Set(["system", "user", "assistant"]);
@@ -434,8 +442,8 @@ function validateMessages(messages) {
     }
 
     if (Array.isArray(msg.content)) {
-      if (msg.role !== "user") {
-        return { ok: false, error: "Only user messages can have multi-part content." };
+      if (!["user", "assistant"].includes(msg.role)) {
+        return { ok: false, error: "Only user/assistant messages can have multi-part content." };
       }
       if (msg.content.length === 0 || msg.content.length > 10) {
         return { ok: false, error: "Multi-part content length must be between 1 and 10." };
@@ -455,10 +463,15 @@ function validateMessages(messages) {
         }
         if (part.type === "image_url") {
           const url = part.image_url?.url;
-          if (typeof url !== "string" || !url.startsWith("data:image/") || !url.includes(";base64,")) {
-            return { ok: false, error: "Image content part must be a data URL." };
+          if (typeof url !== "string") {
+            return { ok: false, error: "Image URL must be a string." };
           }
-          if (url.length > 8_000_000) {
+          const isDataUrl = url.startsWith("data:image/") && url.includes(";base64,");
+          const isServerPath = /^\/images\/[a-zA-Z0-9_.-]+$/.test(url);
+          if (!isDataUrl && !isServerPath) {
+            return { ok: false, error: "Image must be a data URL or server path." };
+          }
+          if (isDataUrl && url.length > 8_000_000) {
             return { ok: false, error: "Image content part is too large." };
           }
           parts.push({ type: "image_url", image_url: { url } });
@@ -514,6 +527,24 @@ app.use("/api", (req, res, next) => {
       .json({ error: `Forbidden for non-local access from ${req.ip}. Set ADMIN_TOKEN to enable remote access.` });
   }
   return next();
+});
+
+// ===== 图片静态服务与上传 =====
+app.use("/images", express.static(IMAGES_DIR));
+
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: IMAGES_DIR,
+    filename: (req, file, cb) => {
+      const safe = file.originalname.replace(/[^a-zA-Z0-9_.-]/g, "_");
+      cb(null, safe);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+    cb(null, allowed.includes(file.mimetype));
+  },
 });
 
 // ===== API: 读取 prompt 文件 =====
@@ -784,6 +815,36 @@ app.delete("/api/conversations/:id", async (req, res) => {
     if (err.code === "ENOENT") return res.json({ ok: true });
     res.status(500).json({ error: err.message });
   }
+});
+
+// 批量删除对话
+app.post("/api/conversations/batch-delete", async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "`ids` must be a non-empty array." });
+  }
+  if (ids.length > 2000) {
+    return res.status(400).json({ error: "Too many ids (max 2000)." });
+  }
+  const results = { deleted: 0, failed: 0 };
+  for (const id of ids) {
+    const filePath = getConversationPath(id);
+    if (!filePath) { results.failed++; continue; }
+    try {
+      await fsp.unlink(filePath);
+      results.deleted++;
+    } catch (err) {
+      if (err.code === "ENOENT") results.deleted++;
+      else results.failed++;
+    }
+  }
+  res.json({ ok: true, ...results });
+});
+
+// ===== API: 图片上传 =====
+app.post("/api/images", imageUpload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No valid image file." });
+  res.json({ ok: true, url: "/images/" + req.file.filename });
 });
 
 // ===== API: 可用模型列表 =====
@@ -1169,6 +1230,32 @@ app.post("/api/chat", async (req, res) => {
       allMessages.push({ role: "system", content: systemPrompt });
     }
     allMessages.push(...validated.value);
+
+    // 将服务端图片路径转为 base64 data URL（模型只认 base64 或公网 URL）
+    for (const msg of allMessages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content) {
+        if (part.type === "image_url" && part.image_url?.url?.startsWith("/images/")) {
+          try {
+            const imgPath = path.join(IMAGES_DIR, path.basename(part.image_url.url));
+            const buf = await fsp.readFile(imgPath);
+            const ext = path.extname(imgPath).slice(1).toLowerCase();
+            const mimeMap = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+            part.image_url.url = "data:" + (mimeMap[ext] || "image/png") + ";base64," + buf.toString("base64");
+          } catch (e) {
+            console.error("Failed to read image:", part.image_url.url, e.message);
+          }
+        }
+      }
+    }
+
+    // assistant 多模态消息降级为纯文本（模型不需要看自己以前生成的图片）
+    for (const msg of allMessages) {
+      if (msg.role === "assistant" && Array.isArray(msg.content)) {
+        const textParts = msg.content.filter((p) => p.type === "text").map((p) => p.text);
+        msg.content = textParts.join("\n") || "";
+      }
+    }
 
     // Token 统计（跨多轮累加）
     let totalPromptTokens = 0;
