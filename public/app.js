@@ -651,6 +651,8 @@ function renderImagePreview() {
 }
 
 function showLightbox(src) {
+  const existing = document.getElementById("image-lightbox");
+  if (existing) existing.remove();
   const overlay = document.createElement("div");
   overlay.id = "image-lightbox";
   const img = document.createElement("img");
@@ -1543,7 +1545,7 @@ async function collectFilesFromEntries(entries) {
   while (queue.length > 0) {
     const entry = queue.shift();
     if (entry.isFile) {
-      const file = await new Promise((resolve) => entry.file(resolve));
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
       files.push({ file, path: entry.fullPath });
     } else if (entry.isDirectory) {
       const children = await readAllEntries(entry);

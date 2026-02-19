@@ -20,6 +20,14 @@
 - 修复导入的图片对话继续聊天报错「Only user messages can have multi-part content」：允许 assistant 消息携带数组内容，发送模型前自动展平为纯文本
 - 修复多模态消息渲染 bug：循环内 `textContent` 被覆盖导致只显示最后一段文本
 
+### Security & Robustness (Code Review)
+- 修复图片路径校验可被 `..` 绕过的路径穿越风险
+- 修复图片上传仅校验 MIME 不校验扩展名的绕过风险，文件名消毒增强（连续点号、前导点号）
+- 修复 assistant 纯图片消息展平后变空串导致模型 API 报错，改为 `[图片]` 占位
+- 修复文件夹导入 `entry.file()` 缺少 reject 回调，读取失败时 Promise 永远 pending
+- 修复灯箱重复创建：快速连点图片会叠加多个遮罩层
+- 修复图片 base64 转换失败后静默吞错，改为降级显示 `[图片不可用]`
+
 ## 2026-02-15
 
 ### New Features

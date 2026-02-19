@@ -467,7 +467,7 @@ function validateMessages(messages) {
             return { ok: false, error: "Image URL must be a string." };
           }
           const isDataUrl = url.startsWith("data:image/") && url.includes(";base64,");
-          const isServerPath = /^\/images\/[a-zA-Z0-9_.-]+$/.test(url);
+          const isServerPath = /^\/images\/[a-zA-Z0-9_.-]+$/.test(url) && !url.includes("..");
           if (!isDataUrl && !isServerPath) {
             return { ok: false, error: "Image must be a data URL or server path." };
           }
@@ -536,14 +536,19 @@ const imageUpload = multer({
   storage: multer.diskStorage({
     destination: IMAGES_DIR,
     filename: (req, file, cb) => {
-      const safe = file.originalname.replace(/[^a-zA-Z0-9_.-]/g, "_");
+      const safe = file.originalname
+        .replace(/[^a-zA-Z0-9_.-]/g, "_")
+        .replace(/\.{2,}/g, "_")
+        .replace(/^\./, "_");
       cb(null, safe);
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-    cb(null, allowed.includes(file.mimetype));
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+    cb(null, allowed.includes(file.mimetype) && allowedExts.includes(ext));
   },
 });
 
@@ -1244,6 +1249,9 @@ app.post("/api/chat", async (req, res) => {
             part.image_url.url = "data:" + (mimeMap[ext] || "image/png") + ";base64," + buf.toString("base64");
           } catch (e) {
             console.error("Failed to read image:", part.image_url.url, e.message);
+            part.type = "text";
+            part.text = "[图片不可用]";
+            delete part.image_url;
           }
         }
       }
@@ -1253,7 +1261,7 @@ app.post("/api/chat", async (req, res) => {
     for (const msg of allMessages) {
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
         const textParts = msg.content.filter((p) => p.type === "text").map((p) => p.text);
-        msg.content = textParts.join("\n") || "";
+        msg.content = textParts.join("\n") || "[图片]";
       }
     }
 
