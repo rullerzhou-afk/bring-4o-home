@@ -6,6 +6,8 @@
 
 ## 快速开始
 
+**前置条件：** 安装 [Node.js](https://nodejs.org/)（推荐 v20）和 [Git](https://git-scm.com/downloads)。
+
 ```bash
 # 1. 克隆项目
 git clone https://github.com/rullerzhou-afk/bring-4o-home.git
