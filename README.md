@@ -230,9 +230,10 @@ sudo systemctl restart caddy
 git clone https://github.com/rullerzhou-afk/bring-4o-home.git
 cd bring-4o-home
 
-# 2. 配置环境变量（和不用 Docker 时一样）
+# 2. 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入你的 API Key
+# 编辑 .env，填入你的 API Key 和 ADMIN_TOKEN（Docker 部署必须设置）
+# Windows: notepad .env   Mac/Linux: nano .env
 
 # 3. 启动（首次会自动构建镜像，需要几分钟）
 docker compose up -d
@@ -271,9 +272,9 @@ docker compose up -d --build
 
 ### 注意事项
 
+- **`ADMIN_TOKEN` 在 Docker 部署中是必须的**。即使你在本机用 `localhost` 访问，请求经过 Docker 网络转发后，容器内看到的来源 IP 不是 `127.0.0.1`，所以不设 token 会被拒绝访问
 - `.env` 文件必须在项目根目录，Docker 启动时会自动读取
 - 容器内会自动设置 `HOST=0.0.0.0`，你不需要在 `.env` 里手动写
-- 如果要从其他设备访问，记得在 `.env` 里设置 `ADMIN_TOKEN`
 - 想换端口？在 `.env` 里加 `PORT=8080`，然后 `docker compose up -d`
 
 ## 模型推荐
