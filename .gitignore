@@ -3,6 +3,8 @@ node_modules/
 logs/
 data/
 prompts/backups/
+prompts/memory.md
+prompts/system.md
 CLAUDE.md
 .claude/
 todo.md
