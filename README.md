@@ -77,6 +77,142 @@ npm start
 
 > 如果要从其他机器访问本服务，请先设置 `ADMIN_TOKEN`。
 
+## 手机 / 远程访问
+
+默认只能在本机（localhost）访问。想用手机或其他电脑访问，有三种方案，按难度从低到高排列。
+
+### 方案一：Tailscale 组网（最简单，推荐）
+
+[Tailscale](https://tailscale.com/) 是一个免费的虚拟局域网工具，不需要公网 IP、不需要域名、不需要买服务器。原理是在你的设备之间建一条加密隧道，让它们像在同一个局域网一样互相访问。
+
+**步骤：**
+
+1. 在 [tailscale.com](https://tailscale.com/) 注册账号（支持 Google / GitHub 登录）
+2. 在你跑项目的电脑上安装 Tailscale 客户端，登录
+3. 在手机上也安装 Tailscale App（iOS / Android 都有），用同一个账号登录
+4. 修改项目的 `.env` 文件，添加两行：
+   ```
+   HOST=0.0.0.0
+   ADMIN_TOKEN=随便写一个你自己的密码
+   ```
+5. 重启项目 `npm start`
+6. 在电脑的 Tailscale 客户端里找到你的 Tailscale IP（类似 `100.x.x.x`）
+7. 手机浏览器打开 `http://100.x.x.x:3000`，输入你设置的 ADMIN_TOKEN 即可
+
+**优点：** 零配置、流量加密、免费、5 分钟搞定
+
+**缺点：** 手机需要一直挂着 Tailscale（后台运行即可，不费电）
+
+### 方案二：内网穿透（不想买服务器）
+
+如果你的电脑在家里的内网（没有公网 IP），可以用内网穿透工具把本地端口暴露到公网。
+
+#### 选项 A：Cloudflare Tunnel（免费，推荐）
+
+1. 注册 [Cloudflare](https://dash.cloudflare.com/) 账号（免费）
+2. 安装 `cloudflared` 命令行工具：
+   - Windows: `winget install cloudflare.cloudflared`
+   - Mac: `brew install cloudflared`
+   - Linux: 参考 [官方文档](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+3. 修改 `.env`：
+   ```
+   HOST=0.0.0.0
+   ADMIN_TOKEN=你的密码
+   ```
+4. 启动项目 `npm start`
+5. 开一个新终端，运行：
+   ```bash
+   cloudflared tunnel --url http://localhost:3000
+   ```
+6. 终端里会显示一个 `https://xxx-xxx-xxx.trycloudflare.com` 的地址
+7. 手机浏览器打开这个地址就能用了
+
+> 每次运行 `cloudflared` 会生成一个随机域名。如果你想固定域名，需要把自己的域名托管到 Cloudflare 并创建持久隧道，具体参考 Cloudflare 官方文档。
+
+#### 选项 B：ngrok
+
+1. 注册 [ngrok](https://ngrok.com/)（免费版够用）
+2. 安装 ngrok 并配置 authtoken
+3. 修改 `.env` 同上
+4. 启动项目后运行 `ngrok http 3000`
+5. 用 ngrok 给的 HTTPS 地址访问
+
+### 方案三：部署到云服务器（VPS）
+
+如果你想随时随地访问、不依赖家里的电脑，可以把项目部署到云服务器上。
+
+**购买服务器：**
+
+| 平台 | 最低配置 | 参考价格 |
+|------|----------|----------|
+| [腾讯云轻量应用服务器](https://cloud.tencent.com/product/lighthouse) | 2核2G | ~¥50/月 |
+| [阿里云轻量应用服务器](https://www.aliyun.com/product/swas) | 2核2G | ~¥50/月 |
+| [Vultr](https://www.vultr.com/) / [DigitalOcean](https://www.digitalocean.com/) | 1核1G | ~$5/月 |
+
+> 这个项目很轻，1核1G 就够跑了。
+
+**部署步骤（以 Ubuntu 为例）：**
+
+```bash
+# 1. 在服务器上安装 Node.js
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 2. 克隆项目
+git clone https://github.com/rullerzhou-afk/bring-4o-home.git
+cd bring-4o-home
+npm install
+
+# 3. 配置环境变量
+cp .env.example .env
+nano .env
+# 必须设置：
+#   OPENAI_API_KEY=你的key（或其他渠道的 key）
+#   HOST=0.0.0.0
+#   ADMIN_TOKEN=一个强密码（重要！！！）
+
+# 4. 用 pm2 保持后台运行（服务器关掉终端也不会停）
+sudo npm install -g pm2
+pm2 start server.js --name gpt-chat
+pm2 save
+pm2 startup    # 开机自启
+```
+
+**配置 HTTPS（强烈推荐）：**
+
+裸 HTTP 在公网上传输密码和聊天内容很不安全。推荐用 Caddy 自动配置 HTTPS：
+
+```bash
+# 安装 Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+
+# 配置反向代理（把 your-domain.com 换成你的域名）
+echo 'your-domain.com {
+    reverse_proxy localhost:3000
+}' | sudo tee /etc/caddy/Caddyfile
+
+# 重启 Caddy（会自动申请 HTTPS 证书）
+sudo systemctl restart caddy
+```
+
+然后手机浏览器访问 `https://your-domain.com` 就行了。
+
+> 没有域名也能用 IP 直接访问（`http://服务器IP:3000`），但没有 HTTPS 加密，不推荐在公网长期使用。
+
+### 手机浏览器小技巧
+
+手机访问后，可以把网页"添加到主屏幕"，这样打开就像一个独立 App：
+
+- **iOS Safari**：点底部分享按钮 → 「添加到主屏幕」
+- **Android Chrome**：点右上角菜单 → 「添加到主屏幕」或「安装应用」
+
+### 安全提醒
+
+> **只要不是在本机 localhost 访问，就必须设置 `ADMIN_TOKEN`。** 不设的话，任何人都能用你的 API Key 聊天、读你的聊天记录、改你的 Prompt。这不是开玩笑——你的 API Key 每一次调用都在花钱。
+
 ## 模型推荐
 
 ### 首选：gpt-4o-2024-11-20
