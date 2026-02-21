@@ -16,11 +16,25 @@ npm install
 
 # 3. 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入你的 API Key
+```
 
+用文本编辑器打开 `.env`，填入你的 API Key（三个渠道选一个填就行）：
+
+- **Windows**: `notepad .env`
+- **Mac / Linux**: `nano .env`
+
+> 本机使用不需要设置 `ADMIN_TOKEN`。如果要从手机、其他电脑访问或使用 Docker 部署，参考下方「手机 / 远程访问」或「Docker 部署」章节。
+
+```bash
 # 4. 启动
 npm start
 # 打开浏览器访问 http://127.0.0.1:3000
+```
+
+**后续更新：**
+
+```bash
+git pull && npm install && npm start
 ```
 
 ## 功能特性
