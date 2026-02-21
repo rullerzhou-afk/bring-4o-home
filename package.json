@@ -4,12 +4,17 @@
   "description": "GPT-4o 私人对话界面",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "multer": "^2.0.2",
     "openai": "^4.82.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }
