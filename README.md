@@ -68,14 +68,14 @@ npm start
 | `OPENROUTER_BASE_URL` | 否 | OpenRouter API 地址（默认 `https://openrouter.ai/api/v1`） |
 | `OPENROUTER_SITE_URL` | 否 | OpenRouter 请求头 `HTTP-Referer`（建议填你实际访问地址） |
 | `OPENROUTER_APP_NAME` | 否 | OpenRouter 请求头 `X-Title`（默认 `bring-4o-home`） |
-| `ADMIN_TOKEN` | 否 | 鉴权 token；跨机器访问时必须设置，未设置时仅允许本机访问 |
+| `ADMIN_TOKEN` | 视情况 | 鉴权 token；Docker 部署或从其他设备访问时**必须设置**，仅本机 `npm start` 可不填 |
 | `SERPER_API_KEY` | 否 | Serper.dev 搜索 API key；配置后自动启用联网搜索 |
 | `HOST` / `PORT` | 否 | 监听地址，默认 `127.0.0.1:3000` |
 | `MODEL` | 否 | 默认模型，fallback `gpt-4o` |
 | `AUTO_LEARN_MODEL` | 否 | 自动记忆提取模型；建议留空，系统按已配置渠道自动选择 |
 | `AUTO_LEARN_COOLDOWN` | 否 | 自动记忆冷却秒数，默认 `300` |
 
-> 如果要从其他机器访问本服务，请先设置 `ADMIN_TOKEN`。
+> 只要不是在本机 `npm start` + `localhost` 的场景，就必须设置 `ADMIN_TOKEN`。包括：Docker 部署、手机访问、其他电脑访问。
 
 ## 手机 / 远程访问
 
@@ -232,9 +232,18 @@ cd bring-4o-home
 
 # 2. 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入你的 API Key 和 ADMIN_TOKEN（Docker 部署必须设置）
-# Windows: notepad .env   Mac/Linux: nano .env
+```
 
+然后用文本编辑器打开 `.env` 文件，填入你的 API Key 和 ADMIN_TOKEN：
+
+- **Windows**: `notepad .env`
+- **Mac / Linux**: `nano .env`
+
+> **Docker 部署必须设置 `ADMIN_TOKEN`**，不设的话打开页面会提示"服务器拒绝访问"。原因见下方注意事项。
+
+填好保存后，启动容器：
+
+```bash
 # 3. 启动（首次会自动构建镜像，需要几分钟）
 docker compose up -d
 ```
@@ -255,12 +264,20 @@ docker compose logs -f
 # 停止
 docker compose down
 
-# 重启（比如改了 .env 之后）
-docker compose restart
-
 # 重新构建（更新代码后）
 docker compose up -d --build
 ```
+
+**修改 `.env` 后怎么生效？**
+
+`docker compose restart` **不会**重新读取 `.env`——它只是重启已有容器，环境变量还是旧的。正确做法是销毁旧容器再重建：
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+> 放心，你的聊天记录和 Prompt 在宿主机的 `data/` 和 `prompts/` 文件夹里，销毁容器不会丢数据。
 
 ### 数据说明
 
@@ -272,10 +289,11 @@ docker compose up -d --build
 
 ### 注意事项
 
-- **`ADMIN_TOKEN` 在 Docker 部署中是必须的**。即使你在本机用 `localhost` 访问，请求经过 Docker 网络转发后，容器内看到的来源 IP 不是 `127.0.0.1`，所以不设 token 会被拒绝访问
+- **`ADMIN_TOKEN` 在 Docker 部署中是必须的**。即使你在本机用 `localhost` 访问，请求经过 Docker 网络转发后，容器内看到的来源 IP 不是 `127.0.0.1`，所以不设 token 会被拒绝访问。如果忘了设置，编辑 `.env` 加上 `ADMIN_TOKEN` 后，运行 `docker compose down` 再 `docker compose up -d` 即可
+- **从手机或其他电脑访问也必须设置 `ADMIN_TOKEN`**，不管是不是 Docker 部署。具体方案参考上方「手机 / 远程访问」章节
 - `.env` 文件必须在项目根目录，Docker 启动时会自动读取
 - 容器内会自动设置 `HOST=0.0.0.0`，你不需要在 `.env` 里手动写
-- 想换端口？在 `.env` 里加 `PORT=8080`，然后 `docker compose up -d`
+- 想换端口？在 `.env` 里加 `PORT=8080`，然后 `docker compose down` + `docker compose up -d`
 
 ## 模型推荐
 

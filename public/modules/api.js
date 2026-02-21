@@ -88,6 +88,8 @@ export async function readErrorMessage(response) {
   return text || `HTTP ${response.status}`;
 }
 
+let _tokenPromptLock = null;
+
 export async function apiFetch(url, options = {}, allowRetry = true) {
   if (navigator.onLine === false) {
     throw new Error("网络已断开，请检查网络连接后重试");
@@ -98,12 +100,27 @@ export async function apiFetch(url, options = {}, allowRetry = true) {
   };
   const response = await fetch(url, finalOptions);
 
-  if (response.status === 401 && allowRetry) {
-    const token = window.prompt("请输入 ADMIN_TOKEN 后继续");
-    if (token && token.trim()) {
-      localStorage.setItem("api_token", token.trim());
-      return apiFetch(url, options, false);
+  if (response.status === 401) {
+    if (allowRetry) {
+      if (!_tokenPromptLock) {
+        _tokenPromptLock = new Promise((resolve) => {
+          const token = window.prompt("请输入 ADMIN_TOKEN 后继续");
+          resolve(token && token.trim() ? token.trim() : null);
+        }).finally(() => { _tokenPromptLock = null; });
+      }
+      const token = await _tokenPromptLock;
+      if (token) {
+        localStorage.setItem("api_token", token);
+        return apiFetch(url, options, false);
+      }
+    } else {
+      localStorage.removeItem("api_token");
+      showToast("ADMIN_TOKEN 验证失败，请刷新页面重试");
     }
+  }
+
+  if (response.status === 403) {
+    showToast("服务器拒绝访问，请在 .env 中设置 ADMIN_TOKEN 后重启服务");
   }
 
   return response;
