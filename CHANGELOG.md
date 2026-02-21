@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-02-21
+
+### Bug Fixes
+- **401 弹窗重复 3 次**：页面加载时 3 个并发 API 请求同时收到 401，各自独立弹出 `window.prompt()`。改用 deferred Promise 锁模式，确保只弹一次输入框，其余请求等待同一个结果
+- **错误 Token 无反馈**：输入错误的 ADMIN_TOKEN 后静默失败，用户不知道发生了什么。现在会弹出 toast 提示「验证失败，请刷新重试」并自动清除 localStorage 中的坏 token
+- **Docker 403 无提示**：未设置 ADMIN_TOKEN 的 Docker 部署返回 403，前端无任何反馈。新增 toast 提示「请在 .env 中设置 ADMIN_TOKEN 后重启服务」
+
+### Documentation
+- **Docker 部署文档增强**：
+  - 新增 `notepad .env` / `nano .env` 编辑步骤，降低新手门槛
+  - 新增「修改 `.env` 后怎么生效」章节，说明 `docker compose restart` 不会重新读取 `.env`，必须 `down` + `up`
+  - 新增 Docker 更新命令 `git pull` + `docker compose up -d --build`
+  - 移除误导性的 `docker compose restart` 常用命令
+- **ADMIN_TOKEN 文档统一**：
+  - `.env.example` 注释明确三种场景（远程访问/Docker/本机）
+  - README 环境变量表 ADMIN_TOKEN 从「否」改为「视情况」
+  - 新增醒目提示：Docker 部署、手机访问、其他电脑访问均必须设置
+
 ## 2026-02-19
 
 ### UI Improvements
