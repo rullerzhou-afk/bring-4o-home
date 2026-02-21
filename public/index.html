@@ -59,7 +59,7 @@
             <input type="file" id="image-input" accept="image/*" multiple hidden />
             <textarea
               id="user-input"
-              placeholder="给 GPT-4o 发消息..."
+              placeholder="给 4o 发消息..."
               rows="1"
             ></textarea>
             <button id="send-btn" title="发送">
@@ -92,7 +92,19 @@
       </div>
       <div id="settings-body">
         <textarea id="edit-system" class="prompt-editor" placeholder="人格指令（角色定义、风格规则、技能清单...）"></textarea>
-        <textarea id="edit-memory" class="prompt-editor hidden" placeholder="用户画像和长期记忆..."></textarea>
+        <div id="memory-panel" class="memory-panel hidden">
+          <div class="config-section-title">个性化</div>
+          <div class="config-row">
+            <label>AI 名称</label>
+            <input type="text" id="config-ai-name" maxlength="30" placeholder="不填则默认显示「4o」" />
+          </div>
+          <div class="config-row">
+            <label>你的称呼</label>
+            <input type="text" id="config-user-name" maxlength="30" placeholder="不填则欢迎语不带称呼" />
+          </div>
+          <div class="config-section-title">长期记忆</div>
+          <textarea id="edit-memory" class="prompt-editor" placeholder="用户画像和长期记忆..."></textarea>
+        </div>
         <div id="edit-config" class="config-panel hidden">
           <div class="config-row">
             <label>模型</label>

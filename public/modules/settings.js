@@ -1,4 +1,4 @@
-import { state, modelSelector } from "./state.js";
+import { state, modelSelector, inputEl, welcomeGreetingEl, getCurrentConv, randomGreeting } from "./state.js";
 import { apiFetch, readErrorMessage } from "./api.js";
 import { initImportTab } from "./import.js";
 
@@ -7,6 +7,7 @@ const settingsOverlay = document.getElementById("settings-overlay");
 const settingsClose = document.getElementById("settings-close");
 const editSystem = document.getElementById("edit-system");
 const editMemory = document.getElementById("edit-memory");
+const memoryPanel = document.getElementById("memory-panel");
 const editConfig = document.getElementById("edit-config");
 const editImport = document.getElementById("edit-import");
 const savePromptsBtn = document.getElementById("save-prompts");
@@ -26,6 +27,9 @@ const fpVal = document.getElementById("fp-val");
 const ctxVal = document.getElementById("ctx-val");
 const currentModelDisplay = document.getElementById("current-model-display");
 
+// 个性化控件
+const configAiName = document.getElementById("config-ai-name");
+const configUserName = document.getElementById("config-user-name");
 // 滑块实时显示数值
 configTemp.addEventListener("input", () => (tempVal.textContent = configTemp.value));
 configPP.addEventListener("input", () => (ppVal.textContent = configPP.value));
@@ -57,6 +61,9 @@ export async function loadConfigPanel() {
       configModel.appendChild(opt);
     });
 
+    // 填充个性化字段
+    configAiName.value = config.ai_name || "";
+    configUserName.value = config.user_name || "";
     // 填充参数
     configTemp.value = config.temperature ?? 1;
     tempVal.textContent = configTemp.value;
@@ -105,7 +112,7 @@ tabs.forEach((tab) => {
     tab.classList.add("active");
     const target = tab.dataset.tab;
     editSystem.classList.toggle("hidden", target !== "system");
-    editMemory.classList.toggle("hidden", target !== "memory");
+    memoryPanel.classList.toggle("hidden", target !== "memory");
     editConfig.classList.toggle("hidden", target !== "config");
     editImport.classList.toggle("hidden", target !== "import");
     if (target === "import") initImportTab();
@@ -127,33 +134,30 @@ savePromptsBtn.addEventListener("click", async () => {
     });
     if (!promptsRes.ok) throw new Error(await readErrorMessage(promptsRes));
 
-    // 保存模型配置
-    const configRes = await apiFetch("/api/config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: configModel.value,
-        temperature: parseFloat(configTemp.value),
-        presence_penalty: parseFloat(configPP.value),
-        frequency_penalty: parseFloat(configFP.value),
-        context_window: parseInt(configCtx.value, 10),
-      }),
-    });
-    if (!configRes.ok) throw new Error(await readErrorMessage(configRes));
-    state.currentConfig = {
-      ...(state.currentConfig || {}),
+    // 保存模型配置（含个性化字段）
+    const configBody = {
       model: configModel.value,
       temperature: parseFloat(configTemp.value),
       presence_penalty: parseFloat(configPP.value),
       frequency_penalty: parseFloat(configFP.value),
       context_window: parseInt(configCtx.value, 10),
+      ai_name: configAiName.value.trim(),
+      user_name: configUserName.value.trim(),
     };
+    const configRes = await apiFetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(configBody),
+    });
+    if (!configRes.ok) throw new Error(await readErrorMessage(configRes));
+    state.currentConfig = { ...(state.currentConfig || {}), ...configBody };
 
     // 同步顶栏模型选择器
     if (modelSelector.value !== configModel.value) {
       modelSelector.value = configModel.value;
     }
 
+    applyPersonalization();
     saveStatus.textContent = "已保存";
     setTimeout(() => (saveStatus.textContent = ""), 2000);
   } catch (err) {
@@ -185,11 +189,16 @@ resetDefaultsBtn.addEventListener("click", async () => {
     configCtx.value = data.config.context_window;
     ctxVal.textContent = data.config.context_window;
 
+    // 清空个性化字段
+    configAiName.value = "";
+    configUserName.value = "";
+
     // 同步模型下拉框
     configModel.value = data.config.model;
     modelSelector.value = data.config.model;
     currentModelDisplay.textContent = "当前模型: " + data.config.model;
 
+    applyPersonalization();
     saveStatus.textContent = "已恢复默认";
     setTimeout(() => (saveStatus.textContent = ""), 2000);
   } catch (err) {
@@ -216,6 +225,7 @@ export async function loadModelSelector() {
       if (m === config.model) opt.selected = true;
       modelSelector.appendChild(opt);
     });
+    applyPersonalization();
   } catch (err) {
     console.error("加载模型列表失败:", err);
   }
@@ -247,3 +257,14 @@ modelSelector.addEventListener("change", async () => {
 });
 
 loadModelSelector();
+
+// ===== 个性化：实时应用 =====
+export function applyPersonalization() {
+  const aiName = state.currentConfig?.ai_name;
+  inputEl.placeholder = aiName ? `给 ${aiName} 发消息...` : "给 4o 发消息...";
+
+  const conv = getCurrentConv();
+  if (!conv || !conv.messages?.length) {
+    welcomeGreetingEl.textContent = randomGreeting();
+  }
+}

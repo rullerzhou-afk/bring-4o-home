@@ -943,11 +943,55 @@ body {
   border-color: var(--accent);
 }
 
+/* ===== 个性化配置 ===== */
+.config-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.config-row input[type="text"] {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  padding: 8px 12px;
+  outline: none;
+  font-family: inherit;
+}
+
+.config-row input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+.config-row input[type="text"]::placeholder {
+  color: var(--text-secondary);
+}
+
 /* ===== 模型参数面板 ===== */
+.memory-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.memory-panel .prompt-editor {
+  flex: 1;
+  min-height: 200px;
+}
+
 .config-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
 }
 
 .config-row {

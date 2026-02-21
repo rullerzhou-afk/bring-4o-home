@@ -2,6 +2,14 @@
 
 ## 2026-02-21
 
+### New Features
+- **个性化设置** — 设置面板「长期记忆」Tab 新增个性化区域：
+  - **AI 名称**：自定义后输入框占位符变为「给 xxx 发消息...」，不填则显示「给 4o 发消息...」
+  - **你的称呼**：设置后欢迎语变为「鹿鹿，今天想聊点什么？」等个性化问候，不填则使用通用欢迎语
+  - 后端 `config.json` 新增 `ai_name` / `user_name` 可选字段，`normalizeConfig` 和 `validateConfigPatch` 同步支持
+  - 保存后立即生效（`applyPersonalization()`），无需刷新页面
+  - 恢复默认时自动清空个性化字段
+
 ### Bug Fixes
 - **401 弹窗重复 3 次**：页面加载时 3 个并发 API 请求同时收到 401，各自独立弹出 `window.prompt()`。改用 deferred Promise 锁模式，确保只弹一次输入框，其余请求等待同一个结果
 - **错误 Token 无反馈**：输入错误的 ADMIN_TOKEN 后静默失败，用户不知道发生了什么。现在会弹出 toast 提示「验证失败，请刷新重试」并自动清除 localStorage 中的坏 token

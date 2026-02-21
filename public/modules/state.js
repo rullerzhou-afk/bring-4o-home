@@ -56,7 +56,21 @@ export const WELCOME_GREETINGS = [
   "嗨，准备好了随时开始！",
 ];
 
+export const PERSONAL_GREETINGS = [
+  "{name}，今天想聊点什么？",
+  "{name}又来找我啦～",
+  "{name}，有什么新鲜事？",
+  "{name}，说吧，什么事？",
+  "嗨{name}，准备好了随时开始！",
+  "{name}，今天心情怎么样？",
+];
+
 export function randomGreeting() {
+  const userName = state.currentConfig?.user_name;
+  if (userName) {
+    const tmpl = PERSONAL_GREETINGS[Math.floor(Math.random() * PERSONAL_GREETINGS.length)];
+    return tmpl.replace("{name}", userName);
+  }
   return WELCOME_GREETINGS[Math.floor(Math.random() * WELCOME_GREETINGS.length)];
 }
 
