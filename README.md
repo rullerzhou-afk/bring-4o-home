@@ -213,6 +213,69 @@ sudo systemctl restart caddy
 
 > **只要不是在本机 localhost 访问，就必须设置 `ADMIN_TOKEN`。** 不设的话，任何人都能用你的 API Key 聊天、读你的聊天记录、改你的 Prompt。这不是开玩笑——你的 API Key 每一次调用都在花钱。
 
+## Docker 部署
+
+如果你不想在电脑上直接装 Node.js，或者想部署到服务器上更方便管理，可以用 Docker。
+
+### 前置条件
+
+安装 Docker Desktop（[下载地址](https://www.docker.com/products/docker-desktop/)）。Windows / Mac / Linux 都支持。
+
+安装后打开 Docker Desktop，确认左下角显示绿色「Running」。
+
+### 一键启动
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/rullerzhou-afk/bring-4o-home.git
+cd bring-4o-home
+
+# 2. 配置环境变量（和不用 Docker 时一样）
+cp .env.example .env
+# 编辑 .env，填入你的 API Key
+
+# 3. 启动（首次会自动构建镜像，需要几分钟）
+docker compose up -d
+```
+
+然后打开浏览器访问 `http://localhost:3000`，搞定。
+
+> **`-d`** 表示后台运行。不加 `-d` 可以看到实时日志，按 Ctrl+C 停止。
+
+### 常用命令
+
+```bash
+# 查看运行状态
+docker compose ps
+
+# 查看日志（实时跟踪）
+docker compose logs -f
+
+# 停止
+docker compose down
+
+# 重启（比如改了 .env 之后）
+docker compose restart
+
+# 重新构建（更新代码后）
+docker compose up -d --build
+```
+
+### 数据说明
+
+你的聊天记录和 Prompt 存在宿主机的 `data/` 和 `prompts/` 文件夹里，不在容器内部。这意味着：
+
+- 停止/删除/重建容器都**不会丢失数据**
+- 可以直接在宿主机编辑 `prompts/system.md` 等文件
+- 备份只需要复制这两个文件夹
+
+### 注意事项
+
+- `.env` 文件必须在项目根目录，Docker 启动时会自动读取
+- 容器内会自动设置 `HOST=0.0.0.0`，你不需要在 `.env` 里手动写
+- 如果要从其他设备访问，记得在 `.env` 里设置 `ADMIN_TOKEN`
+- 想换端口？在 `.env` 里加 `PORT=8080`，然后 `docker compose up -d`
+
 ## 模型推荐
 
 ### 首选：gpt-4o-2024-11-20

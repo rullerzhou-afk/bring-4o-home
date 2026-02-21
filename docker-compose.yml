@@ -1,0 +1,17 @@
+services:
+  gpt-chat:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      # 聊天记录和图片——映射到宿主机，容器删了数据还在
+      - ./data:/app/data
+      # 人格指令和记忆——映射到宿主机，方便直接编辑
+      - ./prompts:/app/prompts
+    env_file:
+      # 从 .env 文件读取所有环境变量（API Key 等）
+      - .env
+    environment:
+      # 容器内必须监听 0.0.0.0，否则外部访问不到
+      - HOST=0.0.0.0
+    restart: unless-stopped
