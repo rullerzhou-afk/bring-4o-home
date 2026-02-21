@@ -103,10 +103,10 @@ export async function apiFetch(url, options = {}, allowRetry = true) {
   if (response.status === 401) {
     if (allowRetry) {
       if (!_tokenPromptLock) {
-        _tokenPromptLock = new Promise((resolve) => {
-          const token = window.prompt("请输入 ADMIN_TOKEN 后继续");
-          resolve(token && token.trim() ? token.trim() : null);
-        }).finally(() => { _tokenPromptLock = null; });
+        let _resolve;
+        _tokenPromptLock = new Promise((r) => { _resolve = r; });
+        const token = window.prompt("请输入 ADMIN_TOKEN 后继续");
+        _resolve(token && token.trim() ? token.trim() : null);
       }
       const token = await _tokenPromptLock;
       if (token) {
@@ -114,6 +114,7 @@ export async function apiFetch(url, options = {}, allowRetry = true) {
         return apiFetch(url, options, false);
       }
     } else {
+      _tokenPromptLock = null;
       localStorage.removeItem("api_token");
       showToast("ADMIN_TOKEN 验证失败，请刷新页面重试");
     }
