@@ -264,7 +264,8 @@ docker compose logs -f
 # 停止
 docker compose down
 
-# 重新构建（更新代码后）
+# 更新到最新版本
+git pull
 docker compose up -d --build
 ```
 
