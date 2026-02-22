@@ -138,7 +138,7 @@ export async function sendMessage() {
 
   const userMsgDiv = messagesEl.querySelector(`.message[data-msg-index="${conv.messages.length - 1}"]`);
   if (userMsgDiv) {
-    userMsgDiv.scrollIntoView({ block: "start" });
+    userMsgDiv.scrollIntoView({ block: "start", behavior: "instant" });
   }
 
   inputEl.value = "";
@@ -183,6 +183,8 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
       if (remaining <= 0 && scrollSpacer.parentNode) {
         scrollSpacer.remove();
         spacerObserver.disconnect();
+        // 占位符消失后立即跳到底部，让 startStreamFollow 接管后续滚动
+        messagesEl.scrollTop = messagesEl.scrollHeight;
       }
     });
     spacerObserver.observe(div);
@@ -401,9 +403,10 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
   // 悬浮工具栏
   div.appendChild(createMsgToolbar(assistantMsg, assistantIndex));
 
-  // 6. 清理占位符 + 收尾
-  const remainingSpacer = messagesEl.querySelector("#scroll-spacer");
-  if (remainingSpacer) remainingSpacer.remove();
+  // 6. 占位符处理：不主动移除
+  // 短回复：spacer 保留，维持"最新对话在顶部、下方留空"的布局（类似 Claude.ai）
+  // 长回复：spacer 已被 ResizeObserver 在流式阶段移除，此处无操作
+  // spacer 会在下次 renderMessages()（发新消息/切换对话）时自然清理
 
   saveConversations();
   setStreaming(false);
@@ -515,7 +518,7 @@ export function editMessage(msgIndex) {
     messagesEl.appendChild(editSpacer);
 
     const editedDiv = messagesEl.querySelector(`.message[data-msg-index="${msgIndex}"]`);
-    if (editedDiv) editedDiv.scrollIntoView({ block: "start" });
+    if (editedDiv) editedDiv.scrollIntoView({ block: "start", behavior: "instant" });
 
     setStreaming(true);
     startStreamFollow();
@@ -545,7 +548,7 @@ export function regenerateMessage(msgIndex) {
 
   const lastIdx = conv.messages.length - 1;
   const lastDiv = messagesEl.querySelector(`.message[data-msg-index="${lastIdx}"]`);
-  if (lastDiv) lastDiv.scrollIntoView({ block: "start" });
+  if (lastDiv) lastDiv.scrollIntoView({ block: "start", behavior: "instant" });
 
   setStreaming(true);
   startStreamFollow();
