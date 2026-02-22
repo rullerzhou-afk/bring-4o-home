@@ -9,6 +9,15 @@
 - **发送后智能滚动** — 发送消息后用户消息自动滚到视口顶部，AI 回复在下方逐步展开；scroll-spacer 占位符随回复增长动态缩小，回复足够长时自然过渡到跟随底部滚动
 - **移动端响应式适配** — 小屏（≤768px）侧边栏变为固定覆盖层 + 半透明遮罩，选择对话后自动收起；设置弹窗全屏显示；使用 `100dvh` 适配 iOS 地址栏
 
+### Code Quality (Batch 7 — Performance, Security & Compatibility)
+- **搜索端点性能加固** — 对话全文搜索从串行逐个读取改为 10 路并发分块处理，新增结果上限 50 条和 5 秒超时截止，防止对话量大时搜索卡死或被 DoS
+- **模型列表 TTL 缓存** — `GET /models` 结果在内存中缓存 3 分钟，重复请求直接返回，避免慢网或限流时拖慢设置页
+- **图片上传安全加固** — multer `fileFilter` 从静默跳过改为主动拒绝（明确错误提示）；上传后校验 PNG/JPEG/GIF/WebP magic bytes 文件头，伪造扩展名的非图片文件不再通过
+- **流式缓冲残余修复** — SSE 流结束后 flush TextDecoder 并处理 buffer 中剩余的完整行，极端情况下最后一段文字不再丢失
+- **DOMPurify 配置加固** — Markdown 渲染的 HTML 清理从默认配置改为显式白名单（`ALLOWED_TAGS` / `ALLOWED_ATTR`），关闭 `data-*` 属性，缩小 XSS 攻击面
+- **Firefox 文件夹拖拽兼容** — `webkitGetAsEntry` 加 `getAsEntry()` 标准 API fallback，Firefox 用户拖入文件夹不再无响应
+- **超时错误友好提示** — 对话总结和 Prompt 融合接口的 `AbortError` 从通用 500 改为 504 + "请求超时，请稍后重试"
+
 ### Code Quality (Batch 6 — Cleanup & Performance)
 - **备份逻辑统一** — 两个路由的重复备份代码提取为 `backupPrompts()` 公共函数，内部使用 `atomicWrite` 和异步 `mkdir`，消除同步 I/O 阻塞
 - **模型名过滤** — `validateConfigPatch` 对 model 字段增加字符白名单校验，含换行符等特殊字符的模型名不再通过验证，防止日志注入

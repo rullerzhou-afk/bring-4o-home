@@ -318,6 +318,29 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
 
     clearTimeout(inactivityTimer);
 
+    // 刷新 decoder 残余字节 + 处理 buffer 中未消费的完整行
+    const flushed = decoder.decode();
+    if (flushed) buffer += flushed;
+    if (buffer.trim()) {
+      for (const line of buffer.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6);
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.content) {
+            assistantMsg.content += parsed.content;
+            contentChanged = true;
+          } else if (parsed.reasoning) {
+            reasoningContent += parsed.reasoning;
+            reasoningChanged = true;
+          } else if (parsed.meta) {
+            metaInfo = parsed.meta;
+          }
+        } catch {}
+      }
+    }
+
     // 流式结束：确保纯文本是最新的（markdown 由收尾阶段处理）
     if (contentChanged) {
       streamContentEl.textContent = assistantMsg.content;

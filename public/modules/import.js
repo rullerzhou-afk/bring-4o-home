@@ -111,7 +111,8 @@ importDropZone.addEventListener("drop", (e) => {
   if (items && items.length > 0) {
     const entries = [];
     for (let i = 0; i < items.length; i++) {
-      const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+      const getEntry = items[i].getAsEntry || items[i].webkitGetAsEntry;
+      const entry = getEntry && getEntry.call(items[i]);
       if (entry) entries.push(entry);
     }
     // 如果包含目录，按文件夹导入处理

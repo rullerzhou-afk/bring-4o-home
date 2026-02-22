@@ -4,8 +4,16 @@ const { openaiClient, arkClient, openrouterClient, formatProviderError } = requi
 const OPENAI_ALLOW = /^(gpt-4o(-2024-(05-13|08-06|11-20))?|gpt-4\.1(-mini|-nano)?|o3(-mini)?)$/;
 const ARK_ALLOW = ["glm", "kimi"];
 const MAX_MODELS_SCAN = 500;
+const MODEL_CACHE_TTL = 3 * 60 * 1000; // 3 分钟缓存
+
+let modelCache = null;
+let modelCacheTime = 0;
 
 router.get("/models", async (req, res) => {
+  const now = Date.now();
+  if (modelCache && now - modelCacheTime < MODEL_CACHE_TTL) {
+    return res.json(modelCache);
+  }
   try {
     // OpenAI 模型（白名单）
     const openaiModels = [];
@@ -59,7 +67,10 @@ router.get("/models", async (req, res) => {
       }
     }
 
-    res.json([...openaiModels, ...arkModels, ...orModels]);
+    const allModels = [...openaiModels, ...arkModels, ...orModels];
+    modelCache = allModels;
+    modelCacheTime = Date.now();
+    res.json(allModels);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

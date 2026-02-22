@@ -66,19 +66,25 @@ router.post("/conversations/search", async (req, res) => {
   if (!q || q.length > 200) {
     return res.status(400).json({ error: "Search query invalid (1-200 chars)." });
   }
+
+  const MAX_RESULTS = 50;
+  const CONCURRENCY = 10;
+  const TIMEOUT_MS = 5000;
+
   try {
-    const files = (await fsp.readdir(CONVERSATIONS_DIR)).filter((f) => f.endsWith(".json"));
+    const files = (await fsp.readdir(CONVERSATIONS_DIR)).filter(
+      (f) => f.endsWith(".json") && f !== "_index.json"
+    );
     const results = [];
-    for (const file of files) {
-      try {
-        const data = JSON.parse(await fsp.readFile(path.join(CONVERSATIONS_DIR, file), "utf-8"));
-        let matched = false;
+    const deadline = Date.now() + TIMEOUT_MS;
+
+    function searchFile(file) {
+      return fsp.readFile(path.join(CONVERSATIONS_DIR, file), "utf-8").then((raw) => {
+        const data = JSON.parse(raw);
         let matchSnippet = "";
         if (data.title && data.title.toLowerCase().includes(q)) {
-          matched = true;
           matchSnippet = data.title;
-        }
-        if (!matched && Array.isArray(data.messages)) {
+        } else if (Array.isArray(data.messages)) {
           for (const msg of data.messages) {
             const text =
               typeof msg.content === "string"
@@ -87,7 +93,6 @@ router.post("/conversations/search", async (req, res) => {
                   ? msg.content.filter((p) => p.type === "text").map((p) => p.text).join(" ")
                   : "";
             if (text.toLowerCase().includes(q)) {
-              matched = true;
               const idx = text.toLowerCase().indexOf(q);
               const start = Math.max(0, idx - 20);
               const end = Math.min(text.length, idx + q.length + 40);
@@ -96,13 +101,20 @@ router.post("/conversations/search", async (req, res) => {
             }
           }
         }
-        if (matched) {
-          results.push({ id: data.id, title: data.title, snippet: matchSnippet });
-        }
-      } catch {
-        // 跳过损坏文件
+        if (matchSnippet) return { id: data.id, title: data.title, snippet: matchSnippet };
+        return null;
+      }).catch(() => null);
+    }
+
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      if (results.length >= MAX_RESULTS || Date.now() > deadline) break;
+      const chunk = files.slice(i, i + CONCURRENCY);
+      const hits = await Promise.all(chunk.map(searchFile));
+      for (const hit of hits) {
+        if (hit && results.length < MAX_RESULTS) results.push(hit);
       }
     }
+
     results.sort((a, b) => Number(b.id) - Number(a.id));
     res.json(results);
   } catch (err) {

@@ -214,6 +214,9 @@ router.post("/conversations/summarize", async (req, res) => {
       skippedTitles,
     });
   } catch (err) {
+    if (err.name === "AbortError") {
+      return res.status(504).json({ error: "请求超时，请稍后重试" });
+    }
     const message = formatProviderError(err);
     console.error("Summarize API error:", message);
     res.status(500).json({ error: message });
@@ -281,6 +284,9 @@ router.post("/conversations/merge-prompt", async (req, res) => {
       mergedMemory: String(parsed.mergedMemory || ""),
     });
   } catch (err) {
+    if (err.name === "AbortError") {
+      return res.status(504).json({ error: "请求超时，请稍后重试" });
+    }
     const message = formatProviderError(err);
     console.error("Merge prompt API error:", message);
     res.status(500).json({ error: message });

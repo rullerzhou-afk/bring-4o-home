@@ -56,7 +56,20 @@ export function renderMarkdown(content) {
   const source = typeof content === "string" ? content : "";
   const unsafeHtml = marked.parse(source);
   if (window.DOMPurify?.sanitize) {
-    return DOMPurify.sanitize(unsafeHtml);
+    return DOMPurify.sanitize(unsafeHtml, {
+      ALLOWED_TAGS: [
+        "p", "br", "h1", "h2", "h3", "h4", "h5", "h6",
+        "a", "ul", "ol", "li", "blockquote", "pre", "code",
+        "em", "strong", "del", "hr", "img", "table", "thead",
+        "tbody", "tr", "th", "td", "details", "summary",
+        "sup", "sub", "span", "div", "input",
+      ],
+      ALLOWED_ATTR: [
+        "href", "target", "rel", "src", "alt", "class", "id",
+        "type", "checked", "disabled",
+      ],
+      ALLOW_DATA_ATTR: false,
+    });
   }
 
   // DOMPurify 加载失败时，降级到纯文本渲染，避免 XSS。
