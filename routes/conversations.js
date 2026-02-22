@@ -2,22 +2,27 @@ const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
 const router = require("express").Router();
-const { getConversationPath, CONVERSATIONS_DIR, atomicWrite } = require("../lib/config");
+const {
+  getConversationPath,
+  CONVERSATIONS_DIR,
+  atomicWrite,
+  readIndex,
+  rebuildIndex,
+  updateIndexEntry,
+  removeIndexEntry,
+  removeIndexEntries,
+} = require("../lib/config");
 const { validateConversation } = require("../lib/validators");
 
 router.get("/conversations", async (req, res) => {
   try {
-    const files = (await fsp.readdir(CONVERSATIONS_DIR)).filter((f) => f.endsWith(".json"));
-    const list = [];
-    for (const file of files) {
-      try {
-        const data = JSON.parse(await fsp.readFile(path.join(CONVERSATIONS_DIR, file), "utf-8"));
-        list.push({ id: data.id, title: data.title, messageCount: (data.messages || []).length });
-      } catch {
-        // 跳过损坏文件
-      }
+    let index = await readIndex();
+    if (!index) {
+      index = await rebuildIndex();
     }
-    list.sort((a, b) => Number(b.id) - Number(a.id));
+    const list = Object.entries(index)
+      .map(([id, meta]) => ({ id, ...meta }))
+      .sort((a, b) => Number(b.id) - Number(a.id));
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -97,6 +102,7 @@ router.post("/conversations/batch-delete", async (req, res) => {
       else results.failed++;
     }
   }
+  await removeIndexEntries(ids).catch(() => {});
   res.json({ ok: true, ...results });
 });
 
@@ -131,6 +137,7 @@ router.put("/conversations/:id", async (req, res) => {
       updatedAt: new Date().toISOString(),
     };
     await atomicWrite(filePath, JSON.stringify(toSave));
+    await updateIndexEntry(body.id, body.title, body.messages.length).catch(() => {});
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -142,6 +149,7 @@ router.delete("/conversations/:id", async (req, res) => {
   if (!filePath) return res.status(400).json({ error: "Invalid conversation id." });
   try {
     await fsp.unlink(filePath);
+    await removeIndexEntry(req.params.id).catch(() => {});
     res.json({ ok: true });
   } catch (err) {
     if (err.code === "ENOENT") return res.json({ ok: true });

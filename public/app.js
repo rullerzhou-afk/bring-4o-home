@@ -229,11 +229,15 @@ inputEl.focus();
     if (!res.ok) return;
     const serverList = await res.json();
 
-    // 本地迁移：localStorage 中独有的对话上传到服务器
+    // 本地迁移：localStorage 中独有的对话上传到服务器（3 并发）
     const serverIds = new Set(serverList.map((c) => c.id));
     const localOnly = state.conversations.filter((c) => !serverIds.has(c.id) && c.messages);
-    for (const conv of localOnly) {
-      await saveConversationToServer(conv);
+    if (localOnly.length > 0) {
+      const queue = [...localOnly];
+      const worker = async () => {
+        while (queue.length > 0) await saveConversationToServer(queue.shift());
+      };
+      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
     }
 
     // 合并：以服务器列表为主

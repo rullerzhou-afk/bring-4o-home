@@ -9,6 +9,11 @@
 - **发送后智能滚动** — 发送消息后用户消息自动滚到视口顶部，AI 回复在下方逐步展开；scroll-spacer 占位符随回复增长动态缩小，回复足够长时自然过渡到跟随底部滚动
 - **移动端响应式适配** — 小屏（≤768px）侧边栏变为固定覆盖层 + 半透明遮罩，选择对话后自动收起；设置弹窗全屏显示；使用 `100dvh` 适配 iOS 地址栏
 
+### Code Quality (Batch 2 — Medium Severity, Design Required)
+- **会话列表索引** — `GET /conversations` 不再全量读取并解析每个对话 JSON 文件，改为维护 `_index.json` 轻量索引；CRUD 操作自动联动更新索引；首次请求自动从文件重建索引
+- **启动同步并发化** — 本地独有对话上传从串行逐个 `await` 改为 3 并发 worker 队列，对话多时冷启动同步提速约 3 倍
+- **Auto-Learn 移除内容审查** — 删除 `MEMORY_BLOCKLIST` 和 `INSTRUCTION_PATTERN` 内容过滤。开源项目不做用户内容管控，仅保留单条长度限制（≤80 字）和 memory 总量限制（≤50KB）防止膨胀
+
 ### Code Quality (Batch 1 — Medium Severity)
 - **文件写入原子化** — 新增 `atomicWrite` 工具函数（写临时文件 → fsync → rename），对话保存、配置保存、记忆追加、Prompt 写入等 5 处替换，异常中断不再损坏原文件
 - **modelSelector 全量覆盖修复** — 顶栏切换模型从「GET 全量 + PUT 全量」改为只 PUT `{ model }`，不再覆盖其他地方正在修改的参数
