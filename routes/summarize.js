@@ -185,7 +185,7 @@ router.post("/conversations/summarize", async (req, res) => {
     let parsed;
     try {
       const jsonMatch = output.match(/```json\s*([\s\S]*?)```/)
-                     || output.match(/\{[\s\S]*"suggestedSystem"[\s\S]*\}/);
+                     || output.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : output;
       parsed = JSON.parse(jsonStr.trim());
     } catch {

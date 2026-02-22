@@ -9,6 +9,13 @@
 - **发送后智能滚动** — 发送消息后用户消息自动滚到视口顶部，AI 回复在下方逐步展开；scroll-spacer 占位符随回复增长动态缩小，回复足够长时自然过渡到跟随底部滚动
 - **移动端响应式适配** — 小屏（≤768px）侧边栏变为固定覆盖层 + 半透明遮罩，选择对话后自动收起；设置弹窗全屏显示；使用 `100dvh` 适配 iOS 地址栏
 
+### Code Quality (Batch 1 — Medium Severity)
+- **文件写入原子化** — 新增 `atomicWrite` 工具函数（写临时文件 → fsync → rename），对话保存、配置保存、记忆追加、Prompt 写入等 5 处替换，异常中断不再损坏原文件
+- **modelSelector 全量覆盖修复** — 顶栏切换模型从「GET 全量 + PUT 全量」改为只 PUT `{ model }`，不再覆盖其他地方正在修改的参数
+- **总结接口 JSON 回退正则修正** — 回退匹配从过时的 `suggestedSystem` 键名改为通用 `{...}` 对象提取
+- **backups 自动清理** — 新增 `pruneBackups`，备份目录自动保留最近 20 份，超出自动删除
+- **localStorage 溢出渐进降级** — `QuotaExceededError` 时逐级尝试 75%→50%→25%→20→10 条缓存，并弹 toast 提示用户
+
 ### Security & Robustness
 - **`/images` 目录鉴权** — 图片静态目录纳入 `authMiddleware` 保护，配置了 ADMIN_TOKEN 的部署不再允许未认证访问；auth 中间件新增 cookie 读取支持（`<img>` 标签无法发 Bearer header），前端自动同步 token 到 cookie
 - **图片上传唯一文件名** — 上传图片改用 `crypto.randomBytes` 生成随机文件名，不同对话上传同名文件不再互相覆盖

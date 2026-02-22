@@ -217,11 +217,12 @@ describe('lib/auto-learn', () => {
 
   describe('appendToLongTermMemory', () => {
     let readFileSpy;
-    let writeFileSpy;
+    let atomicWriteSpy;
+    const configMod = require('../lib/config');
 
     beforeEach(() => {
       readFileSpy = vi.spyOn(fs.promises, 'readFile');
-      writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue();
+      atomicWriteSpy = vi.spyOn(configMod, 'atomicWrite').mockResolvedValue();
     });
 
     afterEach(() => {
@@ -236,8 +237,8 @@ describe('lib/auto-learn', () => {
 
       await mod.appendToLongTermMemory(['- new fact']);
 
-      expect(writeFileSpy).toHaveBeenCalledTimes(1);
-      const written = writeFileSpy.mock.calls[0][1];
+      expect(atomicWriteSpy).toHaveBeenCalledTimes(1);
+      const written = atomicWriteSpy.mock.calls[0][1];
       expect(written).toContain('- [2024-01-01] old fact');
       expect(written).toMatch(/- \[\d{4}-\d{2}-\d{2}\] new fact/);
       // Should NOT create a second "长期记忆" heading
@@ -250,7 +251,7 @@ describe('lib/auto-learn', () => {
 
       await mod.appendToLongTermMemory(['- likes cats']);
 
-      const written = writeFileSpy.mock.calls[0][1];
+      const written = atomicWriteSpy.mock.calls[0][1];
       expect(written).toContain('## 长期记忆');
       expect(written).toMatch(/- \[\d{4}-\d{2}-\d{2}\] likes cats/);
     });
@@ -261,7 +262,7 @@ describe('lib/auto-learn', () => {
 
       await mod.appendToLongTermMemory(['- should not be written']);
 
-      expect(writeFileSpy).not.toHaveBeenCalled();
+      expect(atomicWriteSpy).not.toHaveBeenCalled();
     });
 
     it('adds date prefix [YYYY-MM-DD] to each fact', async () => {
@@ -270,7 +271,7 @@ describe('lib/auto-learn', () => {
 
       await mod.appendToLongTermMemory(['- 养了猫', '- 喜欢 Python']);
 
-      const written = writeFileSpy.mock.calls[0][1];
+      const written = atomicWriteSpy.mock.calls[0][1];
       const today = new Date().toISOString().slice(0, 10);
       expect(written).toContain(`- [${today}] 养了猫`);
       expect(written).toContain(`- [${today}] 喜欢 Python`);
@@ -282,7 +283,7 @@ describe('lib/auto-learn', () => {
 
       await mod.appendToLongTermMemory(['- test']);
 
-      const writePath = writeFileSpy.mock.calls[0][0];
+      const writePath = atomicWriteSpy.mock.calls[0][0];
       expect(writePath).toContain('memory.md');
     });
   });

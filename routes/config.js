@@ -2,7 +2,7 @@ const fs = require("fs");
 const fsp = require("fs").promises;
 const path = require("path");
 const router = require("express").Router();
-const { readConfig, saveConfig, normalizeConfig } = require("../lib/config");
+const { readConfig, saveConfig, normalizeConfig, atomicWrite, pruneBackups } = require("../lib/config");
 const { validateConfigPatch } = require("../lib/validators");
 const { DEFAULT_SYSTEM, DEFAULT_MEMORY, SYSTEM_PATH, MEMORY_PATH, readPromptFile } = require("../lib/prompts");
 
@@ -49,11 +49,12 @@ router.post("/settings/reset", async (req, res) => {
       system: oldSystem,
       memory: oldMemory,
     }, null, 2), "utf-8");
+    await pruneBackups(BACKUPS_DIR);
 
     // 写入默认 prompts
     await Promise.all([
-      fsp.writeFile(SYSTEM_PATH, DEFAULT_SYSTEM, "utf-8"),
-      fsp.writeFile(MEMORY_PATH, DEFAULT_MEMORY, "utf-8"),
+      atomicWrite(SYSTEM_PATH, DEFAULT_SYSTEM),
+      atomicWrite(MEMORY_PATH, DEFAULT_MEMORY),
     ]);
 
     // 重置 config（保留当前模型）

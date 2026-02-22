@@ -25,8 +25,21 @@ export function saveLocalCache() {
         localStorage.setItem("conversations", JSON.stringify(state.conversations));
       } catch (e) {
         if (e.name === "QuotaExceededError") {
-          console.warn("localStorage 空间不足，仅缓存最近 20 个对话");
-          localStorage.setItem("conversations", JSON.stringify(state.conversations.slice(0, 20)));
+          const total = state.conversations.length;
+          const attempts = [Math.ceil(total * 0.75), Math.ceil(total * 0.5), Math.ceil(total * 0.25), 20, 10];
+          let saved = false;
+          for (const count of attempts) {
+            if (count >= total) continue;
+            try {
+              localStorage.setItem("conversations", JSON.stringify(state.conversations.slice(0, count)));
+              showToast(`本地存储空间不足，仅缓存了最近 ${count} 个对话`, "warning");
+              saved = true;
+              break;
+            } catch { /* continue trying smaller */ }
+          }
+          if (!saved) {
+            showToast("本地存储空间严重不足，无法缓存对话列表", "warning");
+          }
         }
       }
     };

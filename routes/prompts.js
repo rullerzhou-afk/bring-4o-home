@@ -4,6 +4,7 @@ const path = require("path");
 const router = require("express").Router();
 const { readPromptFile, SYSTEM_PATH, MEMORY_PATH } = require("../lib/prompts");
 const { validatePromptPatch } = require("../lib/validators");
+const { atomicWrite, pruneBackups } = require("../lib/config");
 
 const BACKUPS_DIR = path.join(__dirname, "..", "prompts", "backups");
 
@@ -42,12 +43,13 @@ router.put("/prompts", async (req, res) => {
       };
       const backupFile = path.join(BACKUPS_DIR, `${Date.now()}.json`);
       await fsp.writeFile(backupFile, JSON.stringify(backupData, null, 2), "utf-8");
+      await pruneBackups(BACKUPS_DIR);
       console.log(`Prompt backup saved: ${backupFile}`);
     }
 
     const writes = [];
-    if (system !== undefined) writes.push(fsp.writeFile(SYSTEM_PATH, system, "utf-8"));
-    if (memory !== undefined) writes.push(fsp.writeFile(MEMORY_PATH, memory, "utf-8"));
+    if (system !== undefined) writes.push(atomicWrite(SYSTEM_PATH, system));
+    if (memory !== undefined) writes.push(atomicWrite(MEMORY_PATH, memory));
     await Promise.all(writes);
     res.json({ ok: true });
   } catch (err) {

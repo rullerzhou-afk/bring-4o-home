@@ -2,7 +2,7 @@ const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
 const router = require("express").Router();
-const { getConversationPath, CONVERSATIONS_DIR } = require("../lib/config");
+const { getConversationPath, CONVERSATIONS_DIR, atomicWrite } = require("../lib/config");
 const { validateConversation } = require("../lib/validators");
 
 router.get("/conversations", async (req, res) => {
@@ -130,7 +130,7 @@ router.put("/conversations/:id", async (req, res) => {
       messages: body.messages,
       updatedAt: new Date().toISOString(),
     };
-    await fsp.writeFile(filePath, JSON.stringify(toSave), "utf-8");
+    await atomicWrite(filePath, JSON.stringify(toSave));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

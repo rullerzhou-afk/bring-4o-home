@@ -233,18 +233,14 @@ export async function loadModelSelector() {
 
 modelSelector.addEventListener("change", async () => {
   try {
-    const configRes = await apiFetch("/api/config");
-    if (!configRes.ok) return;
-    const config = await configRes.json();
-    config.model = modelSelector.value;
-
     const saveRes = await apiFetch("/api/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
+      body: JSON.stringify({ model: modelSelector.value }),
     });
     if (!saveRes.ok) throw new Error("保存失败");
-    state.currentConfig = config;
+    const data = await saveRes.json();
+    state.currentConfig = data.config;
 
     // 同步设置面板的模型下拉框
     if (configModel.value !== modelSelector.value) {
