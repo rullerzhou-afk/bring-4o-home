@@ -52,7 +52,7 @@ git pull && npm install && npm start
 - **批量管理对话** — 侧边栏「管理」模式，支持全选/多选批量删除
 - **时间分组侧边栏** — 对话按时间倒序排列，自动按月份/季度/年份分组显示
 - **上下文条数控制** — 可调节每次发送的历史消息条数（4-500），平衡上下文记忆与 token 消耗
-- **个性化设置** — 自定义 AI 名称和你的称呼，输入框和欢迎语自动变为个性化内容
+- **个性化设置** — 在设置面板「长期记忆」Tab 内，可自定义 AI 名称和你的称呼，输入框和欢迎语自动变为个性化内容
 - **消息编辑与重新生成** — 编辑已发送的消息（截断后续内容并重新生成）、重新生成 AI 回复
 - **移动端适配** — 响应式布局，侧边栏滑动收起，手机上也能流畅使用
 - **对话持久化** — 服务端存储，聊天记录不丢失
@@ -128,25 +128,24 @@ git pull && npm install && npm start
 
 #### 选项 A：Cloudflare Tunnel（免费，推荐）
 
-1. 注册 [Cloudflare](https://dash.cloudflare.com/) 账号（免费）
-2. 安装 `cloudflared` 命令行工具：
+**不需要注册账号**，直接安装工具就能用。每次运行会生成一个临时链接，重启后链接会变——临时测试完全够用。如果想要固定域名，才需要注册 Cloudflare 账号并创建持久隧道。
+
+1. 安装 `cloudflared` 命令行工具：
    - Windows: `winget install cloudflare.cloudflared`
    - Mac: `brew install cloudflared`
    - Linux: 参考 [官方文档](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-3. 修改 `.env`：
+2. 修改 `.env`：
    ```
    HOST=0.0.0.0
    ADMIN_TOKEN=你的密码
    ```
-4. 启动项目 `npm start`
-5. 开一个新终端，运行：
+3. 启动项目 `npm start`
+4. 开一个新终端，运行：
    ```bash
    cloudflared tunnel --url http://localhost:3000
    ```
-6. 终端里会显示一个 `https://xxx-xxx-xxx.trycloudflare.com` 的地址
-7. 手机浏览器打开这个地址就能用了
-
-> 每次运行 `cloudflared` 会生成一个随机域名。如果你想固定域名，需要把自己的域名托管到 Cloudflare 并创建持久隧道，具体参考 Cloudflare 官方文档。
+5. 终端里会显示一个 `https://xxx-xxx-xxx.trycloudflare.com` 的地址
+6. 手机浏览器打开这个地址就能用了
 
 #### 选项 B：ngrok
 
