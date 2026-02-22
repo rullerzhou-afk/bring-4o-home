@@ -9,11 +9,58 @@ import {
 import { renderMarkdown, formatMetaTime } from "./api.js";
 import { showLightbox } from "./images.js";
 
-function getMessageText(content) {
+// ===== SVG 图标 =====
+export const ICON_COPY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+export const ICON_CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+const ICON_REGENERATE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>';
+
+export function getMessageText(content) {
   if (Array.isArray(content)) {
     return content.filter((p) => p.type === "text").map((p) => p.text).join("\n");
   }
   return content;
+}
+
+export function createMsgToolbar(msg, msgIndex) {
+  const toolbar = document.createElement("div");
+  toolbar.className = "msg-toolbar";
+
+  const timestamp = msg.meta?.timestamp;
+  if (timestamp) {
+    const timeEl = document.createElement("span");
+    timeEl.className = "toolbar-time";
+    timeEl.textContent = formatMetaTime(timestamp);
+    toolbar.appendChild(timeEl);
+  }
+
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "toolbar-btn";
+  copyBtn.title = "复制";
+  copyBtn.dataset.msgAction = "copy";
+  copyBtn.dataset.msgIndex = msgIndex;
+  copyBtn.innerHTML = ICON_COPY;
+  toolbar.appendChild(copyBtn);
+
+  if (msg.role === "user") {
+    const editBtn = document.createElement("button");
+    editBtn.className = "toolbar-btn";
+    editBtn.title = "编辑";
+    editBtn.dataset.msgAction = "edit";
+    editBtn.dataset.msgIndex = msgIndex;
+    editBtn.innerHTML = ICON_EDIT;
+    toolbar.appendChild(editBtn);
+  } else if (msg.role === "assistant") {
+    const regenBtn = document.createElement("button");
+    regenBtn.className = "toolbar-btn";
+    regenBtn.title = "重新生成";
+    regenBtn.dataset.msgAction = "regenerate";
+    regenBtn.dataset.msgIndex = msgIndex;
+    regenBtn.innerHTML = ICON_REGENERATE;
+    toolbar.appendChild(regenBtn);
+  }
+
+  return toolbar;
 }
 
 export function renderMessages() {
@@ -29,9 +76,10 @@ export function renderMessages() {
   welcomeEl.style.display = "none";
   messagesEl.innerHTML = "";
 
-  conv.messages.forEach((msg) => {
+  conv.messages.forEach((msg, idx) => {
     const div = document.createElement("div");
     div.className = `message ${msg.role}`;
+    div.dataset.msgIndex = idx;
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
@@ -97,23 +145,8 @@ export function renderMessages() {
       }
     }
 
-    const copyText = getMessageText(msg.content);
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "copy-btn";
-    copyBtn.title = "复制";
-    copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-    copyBtn.onclick = (e) => {
-      e.stopPropagation();
-      navigator.clipboard.writeText(copyText).then(() => {
-        copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-        setTimeout(() => {
-          copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-        }, 1500);
-      });
-    };
-
     div.appendChild(bubble);
-    div.appendChild(copyBtn);
+    div.appendChild(createMsgToolbar(msg, idx));
     messagesEl.appendChild(div);
   });
 
@@ -132,16 +165,19 @@ export function scrollToBottom(force = false) {
 
 export function startStreamFollow() {
   stopStreamFollow();
+  const hasSpacer = () => !!messagesEl.querySelector("#scroll-spacer");
   const follow = () => {
     if (!state.isStreaming) return;
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (!hasSpacer() && isNearBottom(200)) {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
     state.streamFollowRafId = requestAnimationFrame(follow);
   };
   state.streamFollowRafId = requestAnimationFrame(follow);
 
   if (typeof ResizeObserver === "function") {
     state.streamFollowObserver = new ResizeObserver(() => {
-      if (state.isStreaming) {
+      if (state.isStreaming && !hasSpacer() && isNearBottom(200)) {
         messagesEl.scrollTop = messagesEl.scrollHeight;
       }
     });

@@ -1,7 +1,7 @@
 import { state, getCurrentConv, messagesEl, inputEl, sendBtn } from "./state.js";
 import { apiFetch, showToast, readErrorMessage, renderMarkdown, formatMetaTime } from "./api.js";
 import { saveConversations, createConversation, renderChatList } from "./conversations.js";
-import { renderMessages, scrollToBottom, startStreamFollow, stopStreamFollow } from "./render.js";
+import { renderMessages, scrollToBottom, startStreamFollow, stopStreamFollow, isNearBottom, createMsgToolbar, getMessageText } from "./render.js";
 import { renderImagePreview } from "./images.js";
 
 function showSearchStatus(bubble, cursor, statusText) {
@@ -88,6 +88,7 @@ function showLearnToast(facts) {
   }, 3000);
 }
 
+// ===== 发送消息 =====
 export async function sendMessage() {
   const text = inputEl.value.trim();
   const images = [...state.pendingImages];
@@ -99,7 +100,7 @@ export async function sendMessage() {
 
   const conv = getCurrentConv();
 
-  // 构造用户消息
+  // 构造用户消息（含时间戳）
   let userMessage;
   let outboundUserContent = null;
   if (images.length > 0) {
@@ -113,10 +114,10 @@ export async function sendMessage() {
       contentParts.push({ type: "image_url", image_url: { url: img.dataUrl } });
       thumbnailParts.push({ type: "image_url", image_url: { url: img.thumbnail } });
     });
-    userMessage = { role: "user", content: thumbnailParts };
+    userMessage = { role: "user", content: thumbnailParts, meta: { timestamp: new Date().toISOString() } };
     outboundUserContent = contentParts;
   } else {
-    userMessage = { role: "user", content: text };
+    userMessage = { role: "user", content: text, meta: { timestamp: new Date().toISOString() } };
   }
   conv.messages.push(userMessage);
 
@@ -129,19 +130,37 @@ export async function sendMessage() {
   saveConversations();
   renderMessages();
 
+  // 添加占位符撑开底部，使用户消息可以滚动到视口顶部
+  const scrollSpacer = document.createElement("div");
+  scrollSpacer.id = "scroll-spacer";
+  scrollSpacer.style.height = messagesEl.clientHeight + "px";
+  messagesEl.appendChild(scrollSpacer);
+
+  const userMsgDiv = messagesEl.querySelector(`.message[data-msg-index="${conv.messages.length - 1}"]`);
+  if (userMsgDiv) {
+    userMsgDiv.scrollIntoView({ block: "start" });
+  }
+
   inputEl.value = "";
   state.pendingImages = [];
   renderImagePreview();
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + "px";
+
   setStreaming(true);
   startStreamFollow();
+  await streamAssistantReply(conv, outboundUserContent);
+}
 
+// ===== 流式获取助手回复（sendMessage / editMessage / regenerateMessage 共用） =====
+export async function streamAssistantReply(conv, outboundUserContent = null) {
   const assistantMsg = { role: "assistant", content: "" };
   conv.messages.push(assistantMsg);
+  const assistantIndex = conv.messages.length - 1;
 
   const div = document.createElement("div");
   div.className = "message assistant";
+  div.dataset.msgIndex = assistantIndex;
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   const streamContentEl = document.createElement("div");
@@ -151,8 +170,26 @@ export async function sendMessage() {
   bubble.appendChild(streamContentEl);
   bubble.appendChild(cursor);
   div.appendChild(bubble);
-  messagesEl.appendChild(div);
-  scrollToBottom(true);
+
+  // 在占位符前插入助手消息，保持用户消息在视口顶部
+  const scrollSpacer = messagesEl.querySelector("#scroll-spacer");
+  if (scrollSpacer) {
+    messagesEl.insertBefore(div, scrollSpacer);
+    // 助手消息长大时，占位符对应缩小，总高度不变
+    const initialSpacerH = parseFloat(scrollSpacer.style.height) || 0;
+    const spacerObserver = new ResizeObserver(() => {
+      const remaining = Math.max(0, initialSpacerH - div.offsetHeight);
+      scrollSpacer.style.height = remaining + "px";
+      if (remaining <= 0 && scrollSpacer.parentNode) {
+        scrollSpacer.remove();
+        spacerObserver.disconnect();
+      }
+    });
+    spacerObserver.observe(div);
+  } else {
+    messagesEl.appendChild(div);
+    scrollToBottom(true);
+  }
 
   let metaInfo = null;
   let reasoningContent = "";
@@ -161,8 +198,19 @@ export async function sendMessage() {
     const maxCtx = state.currentConfig?.context_window ?? 50;
     const apiMessages = conv.messages.slice(0, -1).slice(-maxCtx).map((m) => ({
       role: m.role,
-      content: m === userMessage && outboundUserContent ? outboundUserContent : m.content,
+      content: m.content,
     }));
+
+    // 若有完整图片内容，替换最后一条 user 消息的 content
+    if (outboundUserContent) {
+      for (let i = apiMessages.length - 1; i >= 0; i--) {
+        if (apiMessages[i].role === "user") {
+          apiMessages[i].content = outboundUserContent;
+          break;
+        }
+      }
+    }
+
     const chatAbort = new AbortController();
     state.activeStreamAbort = chatAbort;
 
@@ -211,7 +259,9 @@ export async function sendMessage() {
           streamContentEl.textContent = assistantMsg.content;
           contentChanged = false;
         }
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (!messagesEl.querySelector("#scroll-spacer") && isNearBottom(200)) {
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
       });
     }
 
@@ -266,21 +316,18 @@ export async function sendMessage() {
 
     clearTimeout(inactivityTimer);
 
-    // 流式结束后确保最终内容渲染
+    // 流式结束：确保纯文本是最新的（markdown 由收尾阶段处理）
     if (contentChanged) {
       streamContentEl.textContent = assistantMsg.content;
-      contentChanged = false;
     }
-    if (reasoningChanged) {
-      showThinkingStatus(bubble, cursor, reasoningContent);
-    }
-    scrollToBottom(true);
+    // 注意：不再调 showThinkingStatus / scrollToBottom，收尾阶段统一处理
   } catch (err) {
     // 用户主动切换对话导致的 abort，静默保存已有内容
     if (state.streamAbortedBySwitch) {
       state.streamAbortedBySwitch = false;
       saveConversations();
       stopStreamFollow();
+      setStreaming(false);
       return;
     }
     const suffix = err.name === "AbortError"
@@ -290,9 +337,23 @@ export async function sendMessage() {
   }
 
   state.activeStreamAbort = null;
-  bubble.innerHTML = "";
 
-  // 思考链：可折叠展示
+  // --- 二阶段收尾：先去光标画一帧，再做重活 ---
+
+  // 1. 记录滚动状态（在 DOM 变动前）
+  const shouldStickBottom = !messagesEl.querySelector("#scroll-spacer") && isNearBottom(200);
+
+  // 2. 去掉光标 + 停止跟随（纯文本保持可见）
+  cursor.remove();
+  stopStreamFollow();
+
+  // 3. 让无光标的纯文本先画一帧（视觉过渡自然）
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  if (!div.isConnected) return; // 用户已切换对话
+
+  // 4. 构建最终 DOM（DocumentFragment 减少重排次数）
+  const frag = document.createDocumentFragment();
+
   if (reasoningContent) {
     const details = document.createElement("details");
     details.className = "thinking-block";
@@ -301,19 +362,25 @@ export async function sendMessage() {
     details.appendChild(summary);
     const thinkingBody = document.createElement("div");
     thinkingBody.className = "thinking-body";
-    thinkingBody.innerHTML = renderMarkdown(reasoningContent);
+    thinkingBody.textContent = reasoningContent;
+    // 懒渲染：折叠状态跳过 markdown，展开时再渲染
+    let reasoningRendered = false;
+    details.addEventListener("toggle", () => {
+      if (details.open && !reasoningRendered) {
+        thinkingBody.innerHTML = renderMarkdown(reasoningContent);
+        reasoningRendered = true;
+      }
+    });
     details.appendChild(thinkingBody);
-    bubble.appendChild(details);
+    frag.appendChild(details);
     assistantMsg.reasoning = reasoningContent;
   }
 
-  // 正文
-  const contentHtml = renderMarkdown(assistantMsg.content);
   const contentContainer = document.createElement("div");
-  contentContainer.innerHTML = contentHtml;
-  bubble.appendChild(contentContainer);
+  contentContainer.innerHTML = renderMarkdown(assistantMsg.content);
+  frag.appendChild(contentContainer);
 
-  // 显示 meta 信息（token + 模型 + 日期/时间）
+  // meta 信息（token + 模型 + 日期/时间）
   const timestamp = new Date().toISOString();
   const metaEl = document.createElement("div");
   metaEl.className = "message-meta";
@@ -323,34 +390,166 @@ export async function sendMessage() {
   } else {
     metaEl.textContent = timeStr;
   }
-  bubble.appendChild(metaEl);
+  frag.appendChild(metaEl);
   assistantMsg.meta = metaInfo
     ? { ...metaInfo, timestamp }
     : { timestamp };
 
-  // 流式结束后添加复制按钮
-  const copyBtn = document.createElement("button");
-  copyBtn.className = "copy-btn";
-  copyBtn.title = "复制";
-  copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-  copyBtn.onclick = (e) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(assistantMsg.content).then(() => {
-      copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      setTimeout(() => {
-        copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-      }, 1500);
-    });
-  };
-  div.appendChild(copyBtn);
+  // 5. 一次性替换 bubble 内容（避免 innerHTML="" + 多次 append）
+  bubble.replaceChildren(frag);
+
+  // 悬浮工具栏
+  div.appendChild(createMsgToolbar(assistantMsg, assistantIndex));
+
+  // 6. 清理占位符 + 收尾
+  const remainingSpacer = messagesEl.querySelector("#scroll-spacer");
+  if (remainingSpacer) remainingSpacer.remove();
 
   saveConversations();
-  stopStreamFollow();
   setStreaming(false);
-  scrollToBottom(true);
+
+  // 滚动放到下一帧，避免和 DOM 更新冲突
+  if (shouldStickBottom) {
+    requestAnimationFrame(() => {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
 
   // Auto-learn: fire-and-forget
   triggerAutoLearn(conv);
+}
+
+// ===== 编辑用户消息（截断后续消息并重新生成） =====
+export function editMessage(msgIndex) {
+  if (state.isStreaming) return;
+
+  const conv = getCurrentConv();
+  if (!conv) return;
+  const msg = conv.messages[msgIndex];
+  if (!msg || msg.role !== "user") return;
+
+  const msgDiv = messagesEl.querySelector(`.message[data-msg-index="${msgIndex}"]`);
+  if (!msgDiv) return;
+
+  const bubble = msgDiv.querySelector(".bubble");
+  const currentText = getMessageText(msg.content);
+
+  // 隐藏工具栏
+  const toolbar = msgDiv.querySelector(".msg-toolbar");
+  if (toolbar) toolbar.style.display = "none";
+
+  // 保存原始内容
+  const originalHTML = bubble.innerHTML;
+  const originalBg = bubble.style.background;
+  const originalShadow = bubble.style.boxShadow;
+
+  // 替换为编辑 UI
+  bubble.innerHTML = "";
+  bubble.style.background = "none";
+  bubble.style.boxShadow = "none";
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "edit-textarea";
+  textarea.value = currentText;
+  bubble.appendChild(textarea);
+
+  const actions = document.createElement("div");
+  actions.className = "edit-actions";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "edit-cancel-btn";
+  cancelBtn.textContent = "取消";
+
+  const submitBtn = document.createElement("button");
+  submitBtn.className = "edit-submit-btn";
+  submitBtn.textContent = "发送";
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(submitBtn);
+  bubble.appendChild(actions);
+
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+  // 自适应高度
+  textarea.style.height = "auto";
+  textarea.style.height = Math.min(textarea.scrollHeight, 300) + "px";
+  textarea.addEventListener("input", () => {
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, 300) + "px";
+  });
+
+  cancelBtn.onclick = () => {
+    bubble.innerHTML = originalHTML;
+    bubble.style.background = originalBg;
+    bubble.style.boxShadow = originalShadow;
+    if (toolbar) toolbar.style.display = "";
+  };
+
+  submitBtn.onclick = async () => {
+    const newText = textarea.value.trim();
+    if (!newText) return;
+
+    // 更新消息内容
+    if (Array.isArray(msg.content)) {
+      const textPart = msg.content.find((p) => p.type === "text");
+      if (textPart) {
+        textPart.text = newText;
+      } else {
+        msg.content.unshift({ type: "text", text: newText });
+      }
+    } else {
+      msg.content = newText;
+    }
+    msg.meta = { ...(msg.meta || {}), timestamp: new Date().toISOString() };
+
+    // 截断后续消息
+    conv.messages.length = msgIndex + 1;
+    saveConversations();
+    renderMessages();
+
+    // 添加占位符并滚动到编辑的消息
+    const editSpacer = document.createElement("div");
+    editSpacer.id = "scroll-spacer";
+    editSpacer.style.height = messagesEl.clientHeight + "px";
+    messagesEl.appendChild(editSpacer);
+
+    const editedDiv = messagesEl.querySelector(`.message[data-msg-index="${msgIndex}"]`);
+    if (editedDiv) editedDiv.scrollIntoView({ block: "start" });
+
+    setStreaming(true);
+    startStreamFollow();
+    await streamAssistantReply(conv, null);
+  };
+}
+
+// ===== 重新生成助手回复 =====
+export function regenerateMessage(msgIndex) {
+  if (state.isStreaming) return;
+
+  const conv = getCurrentConv();
+  if (!conv) return;
+  const msg = conv.messages[msgIndex];
+  if (!msg || msg.role !== "assistant") return;
+
+  // 截断从当前 assistant 消息开始的所有内容
+  conv.messages.length = msgIndex;
+  saveConversations();
+  renderMessages();
+
+  // 添加占位符并滚动到最后一条消息
+  const regenSpacer = document.createElement("div");
+  regenSpacer.id = "scroll-spacer";
+  regenSpacer.style.height = messagesEl.clientHeight + "px";
+  messagesEl.appendChild(regenSpacer);
+
+  const lastIdx = conv.messages.length - 1;
+  const lastDiv = messagesEl.querySelector(`.message[data-msg-index="${lastIdx}"]`);
+  if (lastDiv) lastDiv.scrollIntoView({ block: "start" });
+
+  setStreaming(true);
+  startStreamFollow();
+  streamAssistantReply(conv, null);
 }
 
 export function setStreaming(val) {

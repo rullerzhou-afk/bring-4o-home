@@ -7,6 +7,7 @@ import {
   uploadBtn,
   imageInput,
   inputWrapper,
+  messagesEl,
   manageBtn,
   batchCancelBtn,
   batchDeleteBtn,
@@ -14,7 +15,8 @@ import {
 } from "./modules/state.js";
 import { apiFetch } from "./modules/api.js";
 import { addImages } from "./modules/images.js";
-import { sendMessage } from "./modules/chat.js";
+import { sendMessage, editMessage, regenerateMessage } from "./modules/chat.js";
+import { getMessageText, ICON_COPY, ICON_CHECK } from "./modules/render.js";
 import {
   renderChatList,
   createConversation,
@@ -149,6 +151,69 @@ searchClear.addEventListener("click", () => {
   searchClear.classList.add("hidden");
   renderChatList();
 });
+
+// ===== 消息工具栏：事件委托 =====
+messagesEl.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-msg-action]");
+  if (!btn) return;
+
+  const action = btn.dataset.msgAction;
+  const msgIndex = parseInt(btn.dataset.msgIndex, 10);
+
+  if (action === "copy") {
+    const conv = getCurrentConv();
+    if (!conv) return;
+    const msg = conv.messages[msgIndex];
+    if (!msg) return;
+    const text = getMessageText(msg.content);
+    navigator.clipboard.writeText(text).then(() => {
+      btn.innerHTML = ICON_CHECK;
+      setTimeout(() => {
+        btn.innerHTML = ICON_COPY;
+      }, 1500);
+    });
+  } else if (action === "edit") {
+    editMessage(msgIndex);
+  } else if (action === "regenerate") {
+    regenerateMessage(msgIndex);
+  }
+});
+
+// ===== 移动端适配 =====
+const sidebarCheckbox = document.getElementById("sidebar-toggle-checkbox");
+const chatListEl = document.getElementById("chat-list");
+
+if (window.matchMedia("(max-width: 768px)").matches) {
+  // 小屏默认隐藏侧边栏
+  if (!sidebarCheckbox.checked) sidebarCheckbox.checked = true;
+
+  // 创建遮罩层
+  const backdrop = document.createElement("div");
+  backdrop.id = "sidebar-backdrop";
+  backdrop.className = "hidden";
+  document.getElementById("app").appendChild(backdrop);
+
+  // 侧边栏切换时同步遮罩
+  sidebarCheckbox.addEventListener("change", () => {
+    backdrop.classList.toggle("hidden", sidebarCheckbox.checked);
+  });
+
+  // 点击遮罩关闭侧边栏
+  backdrop.addEventListener("click", () => {
+    sidebarCheckbox.checked = true;
+    backdrop.classList.add("hidden");
+  });
+
+  // 选择对话后自动关闭侧边栏
+  chatListEl.addEventListener("click", (e) => {
+    if (e.target.closest(".chat-item") && !state.manageMode) {
+      setTimeout(() => {
+        sidebarCheckbox.checked = true;
+        backdrop.classList.add("hidden");
+      }, 100);
+    }
+  });
+}
 
 // ===== 初始化 =====
 renderChatList();
