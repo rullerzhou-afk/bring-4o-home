@@ -2,6 +2,6 @@
   "model": "openai/gpt-4o-2024-11-20",
   "temperature": 0.85,
   "presence_penalty": 0,
-  "frequency_penalty": 0.2,
+  "frequency_penalty": 0.15,
   "context_window": 50
 }

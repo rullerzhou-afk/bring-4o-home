@@ -1,16 +1,38 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bring 4o Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div id="app">
+    <input type="checkbox" id="sidebar-toggle-checkbox" hidden />
     <!-- 侧边栏 -->
     <aside id="sidebar">
-      <button id="new-chat" title="新对话">+ 新对话</button>
+      <div id="sidebar-header">
+        <label for="sidebar-toggle-checkbox" class="sidebar-toggle-btn" title="收起此栏">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </label>
+        <button id="new-chat" title="新对话">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          新对话
+        </button>
+      </div>
       <div id="search-wrapper">
         <input type="text" id="search-input" placeholder="搜索对话..." />
         <button id="search-clear" class="hidden" title="清除搜索">&times;</button>
@@ -35,12 +57,20 @@
     <main id="main">
       <!-- 顶栏：模型选择 -->
       <div id="top-bar">
+        <label for="sidebar-toggle-checkbox" class="sidebar-toggle-btn main-toggle-btn" title="展开侧边栏">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </label>
         <select id="model-selector"></select>
       </div>
       <!-- 消息区 -->
       <div id="messages">
         <div id="welcome">
-          <p id="welcome-greeting">有什么我可以帮你的吗？</p>
+          <p id="welcome-greeting">您好，有什么我可以帮您的吗？</p>
+          <span class="welcome-subtext">随时开始一段新的对话，或上传图片进行分析。</span>
         </div>
       </div>
 
@@ -50,26 +80,24 @@
           <div id="image-preview" class="hidden"></div>
           <div id="input-row">
             <button id="upload-btn" type="button" title="上传图片">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <path d="M21 15l-5-5L5 21"/>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
               </svg>
             </button>
             <input type="file" id="image-input" accept="image/*" multiple hidden />
-            <textarea
-              id="user-input"
-              placeholder="给 4o 发消息..."
-              rows="1"
-            ></textarea>
+            <textarea id="user-input" placeholder="给 4o 发消息..." rows="1"></textarea>
             <button id="send-btn" title="发送">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M7 11L12 6L17 11M12 18V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M7 11L12 6L17 11M12 18V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" />
               </svg>
             </button>
           </div>
         </div>
-        <p id="disclaimer">GPT-4o 可能会犯错。请核查重要信息。</p>
+        <p id="disclaimer">AI可能会犯错，请核查重要信息。</p>
       </div>
     </main>
   </div>
@@ -77,176 +105,242 @@
   <!-- 设置弹窗 -->
   <div id="settings-overlay" class="hidden">
     <div id="settings-panel">
-      <div id="settings-header">
-        <div>
-          <h2>Prompt 设置</h2>
+      <!-- 弹窗左侧导航 -->
+      <div id="settings-sidebar">
+        <div id="settings-header">
+          <h2>偏好设置</h2>
+        </div>
+        <div id="settings-tabs">
+          <button class="tab active" data-tab="system">
+            <svg viewBox="0 0 24 24" fill="none" class="tab-icon">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            人格指令
+          </button>
+          <button class="tab" data-tab="memory">
+            <svg viewBox="0 0 24 24" fill="none" class="tab-icon">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            长期记忆
+          </button>
+          <button class="tab" data-tab="config">
+            <svg viewBox="0 0 24 24" fill="none" class="tab-icon">
+              <line x1="4" y1="21" x2="4" y2="14" />
+              <line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" />
+              <line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" />
+              <line x1="9" y1="8" x2="15" y2="8" />
+              <line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            模型参数
+          </button>
+          <button class="tab" data-tab="import">
+            <svg viewBox="0 0 24 24" fill="none" class="tab-icon">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            导入与总结
+          </button>
+        </div>
+      </div>
+
+      <!-- 弹窗右侧内容 -->
+      <div id="settings-content-wrapper">
+        <div id="settings-top-bar">
           <span id="current-model-display"></span>
-        </div>
-        <button id="settings-close">&times;</button>
-      </div>
-      <div id="settings-tabs">
-        <button class="tab active" data-tab="system">人格指令</button>
-        <button class="tab" data-tab="memory">长期记忆</button>
-        <button class="tab" data-tab="config">模型参数</button>
-        <button class="tab" data-tab="import">导入与总结</button>
-      </div>
-      <div id="settings-body">
-        <textarea id="edit-system" class="prompt-editor" placeholder="人格指令（角色定义、风格规则、技能清单...）"></textarea>
-        <div id="memory-panel" class="memory-panel hidden">
-          <div class="config-section-title">个性化</div>
-          <div class="config-row">
-            <label>AI 名称</label>
-            <input type="text" id="config-ai-name" maxlength="30" placeholder="不填则默认显示「4o」" />
-          </div>
-          <div class="config-row">
-            <label>你的称呼</label>
-            <input type="text" id="config-user-name" maxlength="30" placeholder="不填则欢迎语不带称呼" />
-          </div>
-          <div class="config-section-title">长期记忆</div>
-          <textarea id="edit-memory" class="prompt-editor" placeholder="用户画像和长期记忆..."></textarea>
-        </div>
-        <div id="edit-config" class="config-panel hidden">
-          <div class="config-row">
-            <label>模型</label>
-            <select id="config-model"></select>
-          </div>
-          <div class="config-row">
-            <label>Temperature <span class="config-val" id="temp-val">1</span></label>
-            <input type="range" id="config-temp" min="0" max="2" step="0.05" value="1" />
-            <p class="config-hint">越低越确定/理性，越高越随机/有创意。网页版 ChatGPT 默认 1。</p>
-          </div>
-          <div class="config-row">
-            <label>Presence Penalty <span class="config-val" id="pp-val">0</span></label>
-            <input type="range" id="config-pp" min="-2" max="2" step="0.1" value="0" />
-            <p class="config-hint">正值鼓励模型谈论新话题，避免重复。网页版默认 0。</p>
-          </div>
-          <div class="config-row">
-            <label>Frequency Penalty <span class="config-val" id="fp-val">0</span></label>
-            <input type="range" id="config-fp" min="-2" max="2" step="0.1" value="0" />
-            <p class="config-hint">正值降低已出现词汇的重复率。网页版默认 0。</p>
-          </div>
-          <div class="config-row">
-            <label>上下文条数 <span class="config-val" id="ctx-val">50</span></label>
-            <input type="range" id="config-ctx" min="4" max="500" step="2" value="50" />
-            <p class="config-hint">回复时读取最近多少条消息作为上下文。越多越连贯但费用越高，建议 30-80。</p>
-          </div>
+          <button id="settings-close">&times;</button>
         </div>
 
-        <!-- 导入与总结 Tab -->
-        <div id="edit-import" class="hidden">
-          <!-- 阶段 1：文件上传 -->
-          <div id="import-drop-zone">
-            <div class="drop-zone-content">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <p>拖拽 ChatGPT 导出的文件夹或 JSON 文件到这里</p>
-              <div class="import-btn-row">
-                <button id="import-folder-btn" type="button">选择文件夹（含图片）</button>
-                <button id="import-file-btn" type="button">仅选 JSON 文件</button>
+        <div id="settings-body">
+          <textarea id="edit-system" class="prompt-editor" placeholder="人格指令（角色定义、风格规则、技能清单...）"></textarea>
+          <div id="memory-panel" class="memory-panel hidden">
+            <div class="config-section-title">个性化</div>
+            <div class="config-row text-input-row">
+              <label>AI 名称</label>
+              <input type="text" id="config-ai-name" maxlength="30" placeholder="不填则默认显示「4o」" />
+            </div>
+            <div class="config-row text-input-row">
+              <label>你的称呼</label>
+              <input type="text" id="config-user-name" maxlength="30" placeholder="不填则欢迎语不带称呼" />
+            </div>
+            <div class="config-section-title">长期记忆</div>
+            <textarea id="edit-memory" class="prompt-editor" placeholder="用户画像和长期记忆..."></textarea>
+          </div>
+          <div id="edit-config" class="config-panel hidden">
+            <div class="config-row dropdown-row">
+              <label>模型</label>
+              <select id="config-model"></select>
+            </div>
+            <div class="config-row slider-row">
+              <div class="slider-label-group">
+                <label>Temperature</label>
+                <span class="config-val" id="temp-val">1</span>
               </div>
+              <input type="range" id="config-temp" min="0" max="2" step="0.05" value="1" />
+              <p class="config-hint">越低越确定/理性，越高越随机/有创意。网页版 ChatGPT 默认 1。</p>
             </div>
-            <div id="import-parsing" class="hidden">
-              <div class="spinner"></div>
-              <p id="import-parsing-text">正在解析，请稍候...</p>
-            </div>
-            <input type="file" id="import-file-input" accept=".json" hidden />
-            <input type="file" id="import-folder-input" webkitdirectory hidden />
-          </div>
-          <details id="import-help">
-            <summary>不知道怎么导出 ChatGPT 数据？</summary>
-            <ol>
-              <li>打开 <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener">ChatGPT 设置</a> &rarr; Data controls &rarr; Export data</li>
-              <li>点击 Export，等邮件通知后下载 ZIP 文件</li>
-              <li>解压 ZIP 得到一个文件夹</li>
-              <li>将<strong>整个文件夹</strong>拖到上方区域（可恢复图片），或仅上传里面的 conversations.json（图片显示占位文本）</li>
-            </ol>
-          </details>
-          <div id="import-error" class="hidden"></div>
-
-          <!-- 阶段 2：对话列表 -->
-          <div id="import-list-section" class="hidden">
-            <div id="import-scope-toggle">
-              <button class="scope-btn active" data-scope="imported">本次导入</button>
-              <button class="scope-btn" data-scope="all">全部本地</button>
-            </div>
-            <div id="import-list-header">
-              <label><input type="checkbox" id="import-select-all" checked /> 全选</label>
-              <span id="import-count"></span>
-            </div>
-            <div id="import-conv-list"></div>
-            <div id="import-actions">
-              <button id="import-do-btn" type="button">导入选中对话</button>
-            </div>
-            <div id="import-progress" class="hidden">
-              <div id="import-progress-bar"><div id="import-progress-fill"></div></div>
-              <span id="import-progress-text"></span>
-            </div>
-            <div id="import-result" class="hidden"></div>
-
-            <!-- 阶段 3：总结生成 -->
-            <div id="summary-section">
-              <div class="config-row">
-                <label>总结模型</label>
-                <select id="summary-model"></select>
+            <div class="config-row slider-row">
+              <div class="slider-label-group">
+                <label>Presence Penalty</label>
+                <span class="config-val" id="pp-val">0</span>
               </div>
-              <button id="summary-generate-btn" type="button">总结选中对话，生成 Prompt 建议</button>
-              <div id="summary-loading" class="hidden">
+              <input type="range" id="config-pp" min="-2" max="2" step="0.1" value="0" />
+              <p class="config-hint">正值鼓励模型谈论新话题，避免重复。网页版默认 0。</p>
+            </div>
+            <div class="config-row slider-row">
+              <div class="slider-label-group">
+                <label>Frequency Penalty</label>
+                <span class="config-val" id="fp-val">0</span>
+              </div>
+              <input type="range" id="config-fp" min="-2" max="2" step="0.1" value="0" />
+              <p class="config-hint">正值降低已出现词汇的重复率。网页版默认 0。</p>
+            </div>
+            <div class="config-row slider-row">
+              <div class="slider-label-group">
+                <label>上下文条数</label>
+                <span class="config-val" id="ctx-val">50</span>
+              </div>
+              <input type="range" id="config-ctx" min="4" max="500" step="2" value="50" />
+              <p class="config-hint">回复时读取最近多少条消息作为上下文。越多越连贯但费用越高，建议 30-80。</p>
+            </div>
+          </div>
+
+          <!-- 导入与总结 Tab -->
+          <div id="edit-import" class="hidden">
+            <!-- 阶段 1：文件上传 -->
+            <div id="import-drop-zone">
+              <div class="drop-zone-content">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <p>拖拽 ChatGPT 导出的文件夹或 JSON 文件到这里</p>
+                <div class="import-btn-row">
+                  <button id="import-folder-btn" type="button">选择文件夹（含图片）</button>
+                  <button id="import-file-btn" type="button">仅选 JSON 文件</button>
+                </div>
+              </div>
+              <div id="import-parsing" class="hidden">
                 <div class="spinner"></div>
-                <span>正在分析已选对话...</span>
+                <p id="import-parsing-text">正在解析，请稍候...</p>
+              </div>
+              <input type="file" id="import-file-input" accept=".json" hidden />
+              <input type="file" id="import-folder-input" webkitdirectory hidden />
+            </div>
+            <details id="import-help">
+              <summary>不知道怎么导出 ChatGPT 数据？</summary>
+              <ol>
+                <li>打开 <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener">ChatGPT
+                    设置</a>
+                  &rarr; Data controls &rarr; Export data</li>
+                <li>点击 Export，等邮件通知后下载 ZIP 文件</li>
+                <li>解压 ZIP 得到一个文件夹</li>
+                <li>将<strong>整个文件夹</strong>拖到上方区域（可恢复图片），或仅上传里面的 conversations.json（图片显示占位文本）</li>
+              </ol>
+            </details>
+            <div id="import-error" class="hidden"></div>
+
+            <!-- 阶段 2：对话列表 -->
+            <div id="import-list-section" class="hidden">
+              <div id="import-scope-toggle">
+                <button class="scope-btn active" data-scope="imported">本次导入</button>
+                <button class="scope-btn" data-scope="all">全部本地</button>
+              </div>
+              <div id="import-list-header">
+                <label><input type="checkbox" id="import-select-all" checked /> 全选</label>
+                <span id="import-count"></span>
+              </div>
+              <div id="import-conv-list"></div>
+              <div id="import-actions">
+                <button id="import-do-btn" type="button">导入选中对话</button>
+              </div>
+              <div id="import-progress" class="hidden">
+                <div id="import-progress-bar">
+                  <div id="import-progress-fill"></div>
+                </div>
+                <span id="import-progress-text"></span>
+              </div>
+              <div id="import-result" class="hidden"></div>
+
+              <!-- 阶段 3：总结生成 -->
+              <div id="summary-section">
+                <div class="config-row">
+                  <label>总结模型</label>
+                  <select id="summary-model"></select>
+                </div>
+                <button id="summary-generate-btn" type="button">总结选中对话，生成 Prompt 建议</button>
+                <div id="summary-loading" class="hidden">
+                  <div class="spinner"></div>
+                  <span>正在分析已选对话...</span>
+                </div>
               </div>
             </div>
+
+            <!-- 阶段 4a：新发现预览 -->
+            <div id="import-summary-result" class="hidden">
+              <h3>发现的人格风格信息</h3>
+              <textarea id="summary-system-findings" class="prompt-editor" rows="5"
+                placeholder="AI 从对话中提取的新人格/风格发现..."></textarea>
+              <h3>发现的用户画像信息</h3>
+              <textarea id="summary-memory-findings" class="prompt-editor" rows="5"
+                placeholder="AI 从对话中提取的新用户事实..."></textarea>
+              <div id="summary-notes" class="hidden">
+                <h4>发现摘要</h4>
+                <div id="summary-notes-content"></div>
+              </div>
+              <p class="summary-hint">你可以编辑上方内容，删除不需要的条目，然后点击融合。融合会调用 AI 整理，将消耗少量 token。</p>
+              <div id="summary-merge-actions">
+                <button id="summary-merge-btn" type="button">融合到现有 Prompt</button>
+                <button id="summary-cancel-btn" type="button" class="secondary-btn">取消</button>
+              </div>
+              <div id="summary-merge-loading" class="hidden">
+                <div class="spinner"></div>
+                <span>正在融合中...</span>
+              </div>
+            </div>
+
+            <!-- 阶段 4b：融合结果预览 -->
+            <div id="import-merge-result" class="hidden">
+              <h3>融合后的系统提示词</h3>
+              <textarea id="merge-system" class="prompt-editor" placeholder="融合后的系统提示词..."></textarea>
+              <h3>融合后的用户记忆</h3>
+              <textarea id="merge-memory" class="prompt-editor" placeholder="融合后的用户记忆..."></textarea>
+              <div class="summary-warning">应用后将覆盖当前 Prompt（服务端会自动备份旧版本）</div>
+              <div id="merge-apply-actions">
+                <button id="merge-apply-btn" type="button">应用到设置</button>
+                <button id="merge-back-btn" type="button" class="secondary-btn">返回修改</button>
+              </div>
+              <div id="summary-apply-status" class="hidden"></div>
+            </div>
           </div>
 
-          <!-- 阶段 4a：新发现预览 -->
-          <div id="import-summary-result" class="hidden">
-            <h3>发现的人格风格信息</h3>
-            <textarea id="summary-system-findings" class="prompt-editor" rows="5" placeholder="AI 从对话中提取的新人格/风格发现..."></textarea>
-            <h3>发现的用户画像信息</h3>
-            <textarea id="summary-memory-findings" class="prompt-editor" rows="5" placeholder="AI 从对话中提取的新用户事实..."></textarea>
-            <div id="summary-notes" class="hidden">
-              <h4>发现摘要</h4>
-              <div id="summary-notes-content"></div>
-            </div>
-            <p class="summary-hint">你可以编辑上方内容，删除不需要的条目，然后点击融合。融合会调用 AI 整理，将消耗少量 token。</p>
-            <div id="summary-merge-actions">
-              <button id="summary-merge-btn" type="button">融合到现有 Prompt</button>
-              <button id="summary-cancel-btn" type="button" class="secondary-btn">取消</button>
-            </div>
-            <div id="summary-merge-loading" class="hidden">
-              <div class="spinner"></div>
-              <span>正在融合中...</span>
-            </div>
+          <!-- 取消对 footer 的包裹，直接放在 body 兄弟层级 -->
+          <div id="settings-footer">
+            <span id="save-status"></span>
+            <button id="reset-defaults" class="secondary-btn">恢复默认</button>
+            <button id="save-prompts">保存修改</button>
           </div>
 
-          <!-- 阶段 4b：融合结果预览 -->
-          <div id="import-merge-result" class="hidden">
-            <h3>融合后的系统提示词</h3>
-            <textarea id="merge-system" class="prompt-editor" placeholder="融合后的系统提示词..."></textarea>
-            <h3>融合后的用户记忆</h3>
-            <textarea id="merge-memory" class="prompt-editor" placeholder="融合后的用户记忆..."></textarea>
-            <div class="summary-warning">应用后将覆盖当前 Prompt（服务端会自动备份旧版本）</div>
-            <div id="merge-apply-actions">
-              <button id="merge-apply-btn" type="button">应用到设置</button>
-              <button id="merge-back-btn" type="button" class="secondary-btn">返回修改</button>
-            </div>
-            <div id="summary-apply-status" class="hidden"></div>
-          </div>
-        </div>
-      </div>
-      <div id="settings-footer">
-        <span id="save-status"></span>
-        <button id="reset-defaults" class="secondary-btn">恢复默认</button>
-        <button id="save-prompts">保存</button>
-      </div>
-    </div>
-  </div>
+        </div> <!-- End #settings-content-wrapper -->
+      </div> <!-- End #settings-panel -->
+    </div> <!-- End #settings-overlay -->
 
-  <!-- Markdown 渲染 -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js" integrity="sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3" crossorigin="anonymous"></script>
-  <script type="module" src="app.js"></script>
+    <!-- Markdown 渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"
+      integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+"
+      crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"
+      integrity="sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3"
+      crossorigin="anonymous"></script>
+    <script type="module" src="app.js"></script>
 </body>
+
 </html>

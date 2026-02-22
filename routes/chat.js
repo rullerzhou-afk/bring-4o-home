@@ -45,7 +45,8 @@ router.post("/chat", async (req, res) => {
     // 立即发一个状态事件：给用户即时反馈 + 冲刷连接缓冲
     res.write(`data: ${JSON.stringify({ status: "思考中..." })}\n\n`);
 
-    const [config, systemPrompt] = await Promise.all([readConfig(), buildSystemPrompt()]);
+    const config = await readConfig();
+    const systemPrompt = await buildSystemPrompt(config);
     const client = getClientForModel(config.model);
 
     const baseParams = {
