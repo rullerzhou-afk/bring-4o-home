@@ -1,4 +1,4 @@
-# GPT-4o Chat
+# Bring 4o Home
 
 把 GPT-4o 搬回家——开源的私人 AI 聊天界面，零代码基础也能部署。
 
