@@ -5,6 +5,7 @@ const router = require("express").Router();
 const { readConfig, saveConfig, normalizeConfig, atomicWrite, pruneBackups } = require("../lib/config");
 const { validateConfigPatch } = require("../lib/validators");
 const { DEFAULT_SYSTEM, DEFAULT_MEMORY, SYSTEM_PATH, MEMORY_PATH, readPromptFile } = require("../lib/prompts");
+const { withMemoryLock } = require("../lib/auto-learn");
 
 const BACKUPS_DIR = path.join(__dirname, "..", "prompts", "backups");
 
@@ -54,7 +55,7 @@ router.post("/settings/reset", async (req, res) => {
     // 写入默认 prompts
     await Promise.all([
       atomicWrite(SYSTEM_PATH, DEFAULT_SYSTEM),
-      atomicWrite(MEMORY_PATH, DEFAULT_MEMORY),
+      withMemoryLock(() => atomicWrite(MEMORY_PATH, DEFAULT_MEMORY)),
     ]);
 
     // 重置 config（保留当前模型）

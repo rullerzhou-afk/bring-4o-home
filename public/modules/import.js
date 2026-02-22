@@ -404,7 +404,7 @@ async function uploadImportImage(fileId) {
   const file = importImageMap.get(fileId);
   if (!file) return null;
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("image", file);
   try {
     const res = await apiFetch("/api/images", { method: "POST", body: formData });
     if (!res.ok) return null;

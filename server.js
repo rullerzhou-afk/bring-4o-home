@@ -22,6 +22,25 @@ app.use("/api", require("./routes/models"));
 app.use("/api", require("./routes/summarize"));
 app.use("/api", require("./routes/chat"));
 
+// 404 兜底（未匹配的 /api 路由返回 JSON 而非 HTML）
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// 全局错误处理中间件（JSON parse 失败、multer 错误等）
+app.use((err, req, res, _next) => {
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Invalid JSON" });
+  }
+  if (err.name === "MulterError") {
+    return res.status(400).json({ error: err.message });
+  }
+  console.error("Unhandled error:", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "127.0.0.1";
 

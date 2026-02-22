@@ -13,18 +13,20 @@ npm install
 npm start          # node server.js，默认监听 127.0.0.1:3000
 npm test           # vitest run，跑全部测试
 npm run test:watch # vitest watch 模式
+npx vitest run tests/validators.test.js   # 跑单个测试文件
+npx vitest run -t "test name"             # 按测试名过滤
 ```
 
 无 lint 或构建步骤。`.env` 必须存在且至少配一个 API Key（`OPENAI_API_KEY` / `ARK_API_KEY` / `OPENROUTER_API_KEY` 三选一），否则 `process.exit(1)`。环境变量参考 `.env.example`。
 
 ### 测试
 
-使用 vitest，测试文件在 `tests/`。`tests/setup.js` 设置 dummy 环境变量以绕过 `clients.js` 的启动检查。测试覆盖后端 `lib/` 模块（validators、config、auth、prompts、search、clients、auto-learn）和前端 `import-worker`。
+使用 vitest，测试文件在 `tests/`。`tests/setup.js` 设置 dummy 环境变量以绕过 `clients.js` 的启动检查。`tests/helpers/mock-clients.js` 提供模拟客户端。测试覆盖后端 `lib/` 模块（validators、config、auth、prompts、search、clients、auto-learn）和前端 `import-worker`。
 
 ## 技术栈
 
-- **后端**: Node.js + Express + OpenAI SDK (`openai` v4)，模块化架构
-- **前端**: 纯 Vanilla JS（ES Modules）+ HTML + CSS（无框架），CDN 引入 marked.js + DOMPurify
+- **后端**: Node.js + Express + OpenAI SDK (`openai` v4)，**CommonJS**（`require`/`module.exports`）
+- **前端**: 纯 Vanilla JS（**ES Modules**, `import`/`export`）+ HTML + CSS（无框架），CDN 引入 marked.js + DOMPurify
 - **持久化**: 对话存于 `data/conversations/`（JSON 文件）；Prompt 和模型配置存于 `prompts/`；导入图片存于 `data/images/`；auth token 存于浏览器 localStorage
 
 ## 架构

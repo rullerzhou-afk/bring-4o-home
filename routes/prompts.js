@@ -5,6 +5,7 @@ const router = require("express").Router();
 const { readPromptFile, SYSTEM_PATH, MEMORY_PATH } = require("../lib/prompts");
 const { validatePromptPatch } = require("../lib/validators");
 const { atomicWrite, pruneBackups } = require("../lib/config");
+const { withMemoryLock } = require("../lib/auto-learn");
 
 const BACKUPS_DIR = path.join(__dirname, "..", "prompts", "backups");
 
@@ -49,7 +50,7 @@ router.put("/prompts", async (req, res) => {
 
     const writes = [];
     if (system !== undefined) writes.push(atomicWrite(SYSTEM_PATH, system));
-    if (memory !== undefined) writes.push(atomicWrite(MEMORY_PATH, memory));
+    if (memory !== undefined) writes.push(withMemoryLock(() => atomicWrite(MEMORY_PATH, memory)));
     await Promise.all(writes);
     res.json({ ok: true });
   } catch (err) {
