@@ -6,14 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GPT-4o 私人聊天界面——开源的 AI 对话系统，支持三渠道多模型（OpenAI / 火山引擎 / OpenRouter）、自定义人格、用户记忆管理、联网搜索、思考链展示、SSE 流式回复。许可证 CC BY-NC 4.0（不可商用）。
 
-## 启动命令
+## 开发命令
 
 ```bash
 npm install
 npm start          # node server.js，默认监听 127.0.0.1:3000
+npm test           # vitest run，跑全部测试
+npm run test:watch # vitest watch 模式
 ```
 
-无测试、lint 或构建步骤。`.env` 必须存在且至少配一个 API Key（`OPENAI_API_KEY` / `ARK_API_KEY` / `OPENROUTER_API_KEY` 三选一），否则 `process.exit(1)`。环境变量参考 `.env.example`。
+无 lint 或构建步骤。`.env` 必须存在且至少配一个 API Key（`OPENAI_API_KEY` / `ARK_API_KEY` / `OPENROUTER_API_KEY` 三选一），否则 `process.exit(1)`。环境变量参考 `.env.example`。
+
+### 测试
+
+使用 vitest，测试文件在 `tests/`。`tests/setup.js` 设置 dummy 环境变量以绕过 `clients.js` 的启动检查。测试覆盖后端 `lib/` 模块（validators、config、auth、prompts、search、clients、auto-learn）和前端 `import-worker`。
 
 ## 技术栈
 

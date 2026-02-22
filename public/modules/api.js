@@ -69,6 +69,12 @@ export function getApiToken() {
   return (localStorage.getItem("api_token") || "").trim();
 }
 
+// 页面加载时同步 localStorage token 到 cookie，确保 <img> 等非 fetch 请求也能通过鉴权
+{
+  const t = (localStorage.getItem("api_token") || "").trim();
+  if (t) document.cookie = "api_token=" + encodeURIComponent(t) + "; path=/; SameSite=Strict";
+}
+
 export function withAuthHeaders(headers = {}) {
   const token = getApiToken();
   if (!token) return { ...headers };
@@ -111,11 +117,13 @@ export async function apiFetch(url, options = {}, allowRetry = true) {
       const token = await _tokenPromptLock;
       if (token) {
         localStorage.setItem("api_token", token);
+        document.cookie = "api_token=" + encodeURIComponent(token) + "; path=/; SameSite=Strict";
         return apiFetch(url, options, false);
       }
     } else {
       _tokenPromptLock = null;
       localStorage.removeItem("api_token");
+      document.cookie = "api_token=; path=/; max-age=0";
       showToast("ADMIN_TOKEN 验证失败，请刷新页面重试");
     }
   }

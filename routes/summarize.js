@@ -163,14 +163,21 @@ router.post("/conversations/summarize", async (req, res) => {
   try {
     const client = getClientForModel(model);
     console.log(`[summarize] model: ${model}, conversations: ${allSamples.length}, content: ${userContent.length} chars`);
-    const response = await client.chat.completions.create({
-      model,
-      temperature: 0.7,
-      messages: [
-        { role: "system", content: SUMMARIZE_PROMPT },
-        { role: "user", content: userContent },
-      ],
-    });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60_000);
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model,
+        temperature: 0.7,
+        messages: [
+          { role: "system", content: SUMMARIZE_PROMPT },
+          { role: "user", content: userContent },
+        ],
+      }, { signal: abort.signal });
+    } finally {
+      clearTimeout(timer);
+    }
 
     const output = response.choices[0]?.message?.content || "";
 
@@ -231,14 +238,21 @@ router.post("/conversations/merge-prompt", async (req, res) => {
   try {
     const client = getClientForModel(model);
     console.log(`[merge-prompt] model: ${model}, content: ${userContent.length} chars`);
-    const response = await client.chat.completions.create({
-      model,
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: MERGE_PROMPT },
-        { role: "user", content: userContent },
-      ],
-    });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60_000);
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model,
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: MERGE_PROMPT },
+          { role: "user", content: userContent },
+        ],
+      }, { signal: abort.signal });
+    } finally {
+      clearTimeout(timer);
+    }
 
     const output = response.choices[0]?.message?.content || "";
 

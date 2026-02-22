@@ -9,9 +9,9 @@ const { readConfig } = require("./lib/config");
 const app = express();
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(path.join(__dirname, "public")));
-app.use("/images", express.static(IMAGES_DIR));
 
 app.use("/api", authMiddleware);
+app.use("/images", authMiddleware, express.static(IMAGES_DIR));
 
 app.use("/api", require("./routes/images"));
 app.use("/api", require("./routes/prompts"));

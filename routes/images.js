@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const router = require("express").Router();
 const multer = require("multer");
 const path = require("path");
@@ -7,11 +8,9 @@ const imageUpload = multer({
   storage: multer.diskStorage({
     destination: IMAGES_DIR,
     filename: (req, file, cb) => {
-      const safe = file.originalname
-        .replace(/[^a-zA-Z0-9_.-]/g, "_")
-        .replace(/\.{2,}/g, "_")
-        .replace(/^\./, "_");
-      cb(null, safe);
+      const ext = path.extname(file.originalname).toLowerCase() || ".bin";
+      const unique = crypto.randomBytes(8).toString("hex");
+      cb(null, unique + ext);
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },

@@ -85,14 +85,21 @@ router.post("/memory/auto-learn", async (req, res) => {
       .join("\n\n");
 
     const learnClient = getClientForModel(AUTO_LEARN_MODEL);
-    const response = await learnClient.chat.completions.create({
-      model: AUTO_LEARN_MODEL,
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: AUTO_LEARN_PROMPT },
-        { role: "user", content: `已有记忆：\n${currentMemory}\n\n---\n\n最近的对话：\n${conversationText}` },
-      ],
-    });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60_000);
+    let response;
+    try {
+      response = await learnClient.chat.completions.create({
+        model: AUTO_LEARN_MODEL,
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: AUTO_LEARN_PROMPT },
+          { role: "user", content: `已有记忆：\n${currentMemory}\n\n---\n\n最近的对话：\n${conversationText}` },
+        ],
+      }, { signal: abort.signal });
+    } finally {
+      clearTimeout(timer);
+    }
 
     const output = (response.choices[0]?.message?.content || "").trim();
     if (output === "NONE" || !output) {
