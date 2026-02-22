@@ -388,6 +388,41 @@ function createGroupHeader(label, key, count, cssClass) {
 
 // ---- 主渲染函数 ----
 
+// ---- 跨标签页同步 ----
+
+export function initStorageSync() {
+  window.addEventListener("storage", (e) => {
+    if (e.key !== "conversations" || !e.newValue) return;
+    try {
+      const incoming = JSON.parse(e.newValue);
+      if (!Array.isArray(incoming)) return;
+
+      // 保留当前标签页已加载的消息内容
+      const loaded = new Map();
+      for (const c of state.conversations) {
+        if (c.messages && c.messages.length > 0) loaded.set(c.id, c.messages);
+      }
+
+      for (const c of incoming) {
+        if ((!c.messages || c.messages.length === 0) && loaded.has(c.id)) {
+          c.messages = loaded.get(c.id);
+        }
+      }
+
+      state.conversations = incoming;
+
+      // 当前对话被其他标签页删除
+      if (state.currentConvId && !incoming.some((c) => c.id === state.currentConvId)) {
+        state.currentConvId = incoming.length > 0 ? incoming[0].id : null;
+        renderMessages();
+      }
+      renderChatList();
+    } catch { /* 解析失败静默忽略 */ }
+  });
+}
+
+// ---- 主渲染函数 ----
+
 export function renderChatList() {
   chatListEl.innerHTML = "";
   let items = searchResults.value !== null ? searchResults.value : state.conversations;

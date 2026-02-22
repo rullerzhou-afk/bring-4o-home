@@ -28,6 +28,7 @@ import {
   saveConversationToServer,
   saveLocalCache,
   loadConversationMessages,
+  initStorageSync,
 } from "./modules/conversations.js";
 
 import "./modules/settings.js";
@@ -216,6 +217,7 @@ if (window.matchMedia("(max-width: 768px)").matches) {
 }
 
 // ===== 初始化 =====
+initStorageSync();
 renderChatList();
 if (state.conversations.length > 0) {
   switchConversation(state.conversations[0].id);

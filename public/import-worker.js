@@ -25,16 +25,30 @@ onmessage = function (e) {
       var conv = jsonData[ci];
       if (!conv.mapping) continue;
 
-      // 找到起始节点：优先用 current_node，否则找时间戳最新的叶子节点
+      // 找到起始节点：优先用 current_node，否则找消息链最长的叶子节点
       var startNode = conv.current_node;
       if (!startNode || !conv.mapping[startNode]) {
         var bestLeaf = null;
+        var bestDepth = -1;
         var bestTime = -1;
         for (var nodeId in conv.mapping) {
           var node = conv.mapping[nodeId];
           if (!node.children || node.children.length === 0) {
+            // 沿 parent 链计算有效消息数（深度）
+            var depth = 0;
+            var cur = nodeId;
+            var depthVisited = new Set();
+            while (cur && conv.mapping[cur] && !depthVisited.has(cur)) {
+              depthVisited.add(cur);
+              var m = conv.mapping[cur].message;
+              if (m && m.content && m.author && (m.author.role === "user" || m.author.role === "assistant" || m.author.role === "tool")) {
+                depth++;
+              }
+              cur = conv.mapping[cur].parent;
+            }
             var t = (node.message && node.message.create_time) || 0;
-            if (t > bestTime || bestLeaf === null) {
+            if (depth > bestDepth || (depth === bestDepth && t > bestTime) || bestLeaf === null) {
+              bestDepth = depth;
               bestTime = t;
               bestLeaf = nodeId;
             }

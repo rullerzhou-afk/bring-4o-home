@@ -13,6 +13,37 @@ const {
   removeIndexEntries,
 } = require("../lib/config");
 const { validateConversation } = require("../lib/validators");
+const { IMAGES_DIR } = require("../lib/config");
+
+/** 从对话消息中提取 /images/ 引用的文件名列表 */
+function extractImageFilenames(messages) {
+  if (!Array.isArray(messages)) return [];
+  const filenames = [];
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content) {
+      if (
+        part.type === "image_url" &&
+        part.image_url &&
+        typeof part.image_url.url === "string" &&
+        part.image_url.url.startsWith("/images/")
+      ) {
+        const name = part.image_url.url.slice("/images/".length);
+        if (name && !name.includes("/") && !name.includes("..")) {
+          filenames.push(name);
+        }
+      }
+    }
+  }
+  return filenames;
+}
+
+/** 尽力删除图片文件，失败静默忽略 */
+async function cleanupImages(filenames) {
+  await Promise.all(
+    filenames.map((f) => fsp.unlink(path.join(IMAGES_DIR, f)).catch(() => {}))
+  );
+}
 
 router.get("/conversations", async (req, res) => {
   try {
@@ -88,12 +119,17 @@ router.post("/conversations/batch-delete", async (req, res) => {
     return res.status(400).json({ error: "Too many ids (max 2000)." });
   }
   const results = { deleted: 0, failed: 0 };
+  const allImages = [];
   for (const id of ids) {
     const filePath = getConversationPath(id);
     if (!filePath) {
       results.failed++;
       continue;
     }
+    try {
+      const data = JSON.parse(await fsp.readFile(filePath, "utf-8"));
+      allImages.push(...extractImageFilenames(data.messages));
+    } catch { /* 文件不存在或损坏 */ }
     try {
       await fsp.unlink(filePath);
       results.deleted++;
@@ -103,6 +139,7 @@ router.post("/conversations/batch-delete", async (req, res) => {
     }
   }
   await removeIndexEntries(ids).catch(() => {});
+  if (allImages.length > 0) cleanupImages(allImages).catch(() => {});
   res.json({ ok: true, ...results });
 });
 
@@ -148,8 +185,15 @@ router.delete("/conversations/:id", async (req, res) => {
   const filePath = getConversationPath(req.params.id);
   if (!filePath) return res.status(400).json({ error: "Invalid conversation id." });
   try {
+    // 先读取对话内容以提取图片引用
+    let images = [];
+    try {
+      const data = JSON.parse(await fsp.readFile(filePath, "utf-8"));
+      images = extractImageFilenames(data.messages);
+    } catch { /* 文件不存在或损坏，跳过图片清理 */ }
     await fsp.unlink(filePath);
     await removeIndexEntry(req.params.id).catch(() => {});
+    if (images.length > 0) cleanupImages(images).catch(() => {});
     res.json({ ok: true });
   } catch (err) {
     if (err.code === "ENOENT") return res.json({ ok: true });

@@ -223,6 +223,50 @@ describe('import-worker', () => {
       expect(res.conversations[0].messages).toHaveLength(2);
     });
 
+    it('prefers longest message chain when current_node is missing', () => {
+      // Build a branching tree manually:
+      // root -> A(user) -> B(assistant) -> C(user) -> D(assistant)  [main branch, 4 msgs]
+      //                 \-> E(assistant, newer time)                 [short branch, 1 msg]
+      const mapping = {
+        root: { id: 'root', message: null, parent: null, children: ['A'] },
+        A: {
+          id: 'A',
+          message: { author: { role: 'user' }, content: { content_type: 'text', parts: ['q1'] }, create_time: 100 },
+          parent: 'root',
+          children: ['B', 'E'],
+        },
+        B: {
+          id: 'B',
+          message: { author: { role: 'assistant' }, content: { content_type: 'text', parts: ['a1'] }, create_time: 101 },
+          parent: 'A',
+          children: ['C'],
+        },
+        C: {
+          id: 'C',
+          message: { author: { role: 'user' }, content: { content_type: 'text', parts: ['q2'] }, create_time: 102 },
+          parent: 'B',
+          children: ['D'],
+        },
+        D: {
+          id: 'D',
+          message: { author: { role: 'assistant' }, content: { content_type: 'text', parts: ['a2'] }, create_time: 103 },
+          parent: 'C',
+          children: [],
+        },
+        E: {
+          id: 'E',
+          message: { author: { role: 'assistant' }, content: { content_type: 'text', parts: ['regen'] }, create_time: 999 },
+          parent: 'A',
+          children: [],
+        },
+      };
+      const conv = { title: 'Branch Test', create_time: 100, mapping };
+      // No current_node → should pick D (longest chain: 4 msgs) over E (newest time but only 2 msgs)
+      const res = runWorker([conv]);
+      expect(res.conversations[0].messages).toHaveLength(4);
+      expect(res.conversations[0].messages[3].content).toBe('a2');
+    });
+
     it('handles circular references without infinite loop', () => {
       // Create a mapping with a cycle
       const mapping = {
