@@ -32,7 +32,8 @@ router.put("/config", async (req, res) => {
     const updated = await saveConfig({ ...current, ...validated.value });
     res.json({ ok: true, config: updated });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[config] error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -64,7 +65,8 @@ router.post("/settings/reset", async (req, res) => {
 
     res.json({ ok: true, system: DEFAULT_SYSTEM, memory: DEFAULT_MEMORY, config });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[config] error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

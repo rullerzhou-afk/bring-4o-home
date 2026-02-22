@@ -54,7 +54,8 @@ router.put("/prompts", async (req, res) => {
     await Promise.all(writes);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[prompts] error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

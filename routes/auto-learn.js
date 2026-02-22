@@ -4,17 +4,14 @@ const { readPromptFile, MEMORY_PATH } = require("../lib/prompts");
 const { isPlainObject } = require("../lib/config");
 const {
   AUTO_LEARN_MODEL,
-  AUTO_LEARN_COOLDOWN,
-  getLastAutoLearnTime,
-  setLastAutoLearnTime,
   AUTO_LEARN_PROMPT,
+  tryAcquireCooldown,
   filterAutoLearnFacts,
   appendToLongTermMemory,
 } = require("../lib/auto-learn");
 
 router.post("/memory/auto-learn", async (req, res) => {
-  const now = Date.now();
-  if (now - getLastAutoLearnTime() < AUTO_LEARN_COOLDOWN * 1000) {
+  if (!tryAcquireCooldown()) {
     return res.json({ learned: [], skipped: "cooldown" });
   }
 
@@ -73,7 +70,7 @@ router.post("/memory/auto-learn", async (req, res) => {
     const currentMemory = await readPromptFile(MEMORY_PATH);
     const conversationText = recentMessages
       .map((m) => {
-        const role = m.role === "user" ? "用户" : "AI";
+        const role = m.role === "user" ? "用户" : m.role === "assistant" ? "AI" : "系统";
         const text =
           typeof m.content === "string"
             ? m.content
@@ -103,7 +100,6 @@ router.post("/memory/auto-learn", async (req, res) => {
 
     const output = (response.choices[0]?.message?.content || "").trim();
     if (output === "NONE" || !output) {
-      setLastAutoLearnTime(now);
       return res.json({ learned: [] });
     }
 
@@ -115,17 +111,15 @@ router.post("/memory/auto-learn", async (req, res) => {
     const facts = filterAutoLearnFacts(rawFacts);
 
     if (facts.length === 0) {
-      setLastAutoLearnTime(now);
       return res.json({ learned: [], filtered: rawFacts.length - facts.length || undefined });
     }
 
     await appendToLongTermMemory(facts);
-    setLastAutoLearnTime(now);
     console.log(`Auto-learn: extracted ${facts.length} new facts`);
     return res.json({ learned: facts });
   } catch (err) {
     console.error("Auto-learn error:", err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 

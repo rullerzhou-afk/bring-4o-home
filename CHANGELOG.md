@@ -9,6 +9,17 @@
 - **发送后智能滚动** — 发送消息后用户消息自动滚到视口顶部，AI 回复在下方逐步展开；scroll-spacer 占位符随回复增长动态缩小，回复足够长时自然过渡到跟随底部滚动
 - **移动端响应式适配** — 小屏（≤768px）侧边栏变为固定覆盖层 + 半透明遮罩，选择对话后自动收起；设置弹窗全屏显示；使用 `100dvh` 适配 iOS 地址栏
 
+### Code Quality (Batch 5 — Security & Robustness)
+- **对话保存校验统一** — `validateConversation` 复用 `validateMessages` 统一校验逻辑，过滤多余字段、拒绝未知 content part type、限制 multi-part 数量，保存到磁盘的数据与发送给模型的一样干净
+- **聊天超时改为空闲超时** — 固定 120 秒硬超时改为空闲超时，有 chunk 到达就自动续期，长回复持续产出不再被中途掐断
+- **流式解析防护** — `chunk.choices` 加可选链保护，第三方 API 返回异常结构时不再抛 TypeError 中断流
+- **Token 时序攻击防护** — ADMIN_TOKEN 比较从 `!==` 改为 `crypto.timingSafeEqual`，防止通过响应时间逐字节猜测
+- **Auto-Learn 冷却原子化** — 冷却检查和时间戳设置合并为原子操作 `tryAcquireCooldown()`，并发请求不再同时通过冷却检查
+- **403 不再泄露客户端 IP** — 非本地访问被拒时错误消息不再包含 `req.ip`，改为只记服务端日志
+- **500 错误消息统一** — 所有路由的 `catch` 块不再将 `err.message` 直接返回给客户端，统一为 `"Internal server error"`，原始错误仅记录到服务端日志
+- **Cookie 解析防崩溃** — `readCookieToken` 中 `decodeURIComponent` 加 try/catch，畸形 cookie 不再导致 500
+- **Auto-Learn 角色标签修正** — system 消息从误标 "AI" 改为 "系统"，避免人格指令被误判为 AI 说的话
+
 ### Code Quality (Batch 4 — Critical Fixes)
 - **导入图片上传修复** — 前端图片上传字段名与后端不匹配，导致 ChatGPT 导入时图片始终上传失败；修正后导入图片功能恢复正常
 - **索引与记忆并发保护** — 新增 `createMutex()` 互斥锁，`_index.json` 和 `memory.md` 的读-改-写操作加锁串行化，防止并发请求导致数据丢失覆盖

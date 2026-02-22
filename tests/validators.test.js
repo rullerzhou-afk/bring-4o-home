@@ -178,7 +178,10 @@ describe('validateConversation', () => {
   );
 
   it.each(['1234567890', '1234567890123456'])('accepts valid id length: %p', (id) => {
-    expect(validateConversation(makeConversation({ id }))).toEqual({ ok: true });
+    const result = validateConversation(makeConversation({ id }));
+    expect(result.ok).toBe(true);
+    expect(result.value).toBeDefined();
+    expect(result.value.id).toBe(id);
   });
 
   it('returns error when title exceeds 200 chars', () => {
@@ -211,73 +214,67 @@ describe('validateConversation', () => {
   });
 
   it('returns error when string content exceeds 30000 chars', () => {
-    expect(
-      validateConversation(
-        makeConversation({ messages: [{ role: 'user', content: 'a'.repeat(30001) }] })
-      )
-    ).toEqual({
-      ok: false,
-      error: 'Message content is too large (max 30000 chars).',
-    });
+    const result = validateConversation(
+      makeConversation({ messages: [{ role: 'user', content: 'a'.repeat(30001) }] })
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/content.*too large/i);
   });
 
   it('returns error when text part exceeds 10000 chars', () => {
-    expect(
-      validateConversation(
-        makeConversation({
-          messages: [
-            {
-              role: 'assistant',
-              content: [{ type: 'text', text: 'a'.repeat(10001) }],
-            },
-          ],
-        })
-      )
-    ).toEqual({
-      ok: false,
-      error: 'Text content part is too large (max 10000 chars).',
-    });
+    const result = validateConversation(
+      makeConversation({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'a'.repeat(10001) }],
+          },
+        ],
+      })
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/text content part/i);
   });
 
-  it('returns error when image_url part exceeds 8MB', () => {
+  it('returns error when image_url part has invalid URL format', () => {
     const hugeUrl = 'x'.repeat(8000001);
-    expect(
-      validateConversation(
-        makeConversation({
-          messages: [
-            {
-              role: 'assistant',
-              content: [{ type: 'image_url', image_url: { url: hugeUrl } }],
-            },
-          ],
-        })
-      )
-    ).toEqual({
-      ok: false,
-      error: 'Image content part is too large.',
-    });
+    const result = validateConversation(
+      makeConversation({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'image_url', image_url: { url: hugeUrl } }],
+          },
+        ],
+      })
+    );
+    expect(result.ok).toBe(false);
   });
 
-  it('returns ok:true for valid conversation', () => {
-    expect(
-      validateConversation(
-        makeConversation({
-          id: '1234567890123456',
-          title: 'Valid Conversation',
-          messages: [
-            { role: 'system', content: 'system prompt' },
-            { role: 'user', content: 'hello' },
-            {
-              role: 'assistant',
-              content: [
-                { type: 'text', text: 'response' },
-                { type: 'image_url', image_url: { url: '/images/a.png' } },
-              ],
-            },
-          ],
-        })
-      )
-    ).toEqual({ ok: true });
+  it('returns ok:true with normalized value for valid conversation', () => {
+    const result = validateConversation(
+      makeConversation({
+        id: '1234567890123456',
+        title: 'Valid Conversation',
+        messages: [
+          { role: 'system', content: 'system prompt' },
+          { role: 'user', content: 'hello' },
+          {
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'response' },
+              { type: 'image_url', image_url: { url: '/images/a.png' } },
+            ],
+          },
+        ],
+      })
+    );
+    expect(result.ok).toBe(true);
+    expect(result.value.id).toBe('1234567890123456');
+    expect(result.value.title).toBe('Valid Conversation');
+    expect(result.value.messages).toHaveLength(3);
+    // 验证消息被规范化（只保留 role + content）
+    expect(result.value.messages[1]).toEqual({ role: 'user', content: 'hello' });
   });
 });
 

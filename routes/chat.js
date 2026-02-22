@@ -24,11 +24,19 @@ router.post("/chat", async (req, res) => {
   res.on("close", onClientDisconnect);
   let startedSse = false;
 
-  // 120 秒超时保护，防止请求卡死整个服务器
-  const requestTimeout = setTimeout(() => {
-    console.error("[chat] request timeout (120s), aborting");
+  // 空闲超时保护：有 chunk 到达就续期，长回复持续产出不会被中止
+  const IDLE_TIMEOUT_MS = 120_000;
+  let idleTimer = setTimeout(() => {
+    console.error("[chat] idle timeout (120s), aborting");
     abortController.abort();
-  }, 120_000);
+  }, IDLE_TIMEOUT_MS);
+  const resetIdleTimer = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      console.error("[chat] idle timeout (120s), aborting");
+      abortController.abort();
+    }, IDLE_TIMEOUT_MS);
+  };
 
   try {
     res.setHeader("Content-Type", "text/event-stream");
@@ -117,6 +125,7 @@ router.post("/chat", async (req, res) => {
         { signal: abortController.signal },
       );
       console.log("[chat] stream created, reading chunks...");
+      resetIdleTimer();
 
       let assistantContent = "";
       let toolCalls = [];
@@ -125,6 +134,7 @@ router.post("/chat", async (req, res) => {
 
       for await (const chunk of stream) {
         chunkCount++;
+        resetIdleTimer();
         if (abortController.signal.aborted || res.writableEnded) break;
 
         // 收集 usage（最后一个 chunk 才有，此时 choices 可能为空）
@@ -133,7 +143,7 @@ router.post("/chat", async (req, res) => {
           totalCompletionTokens += chunk.usage.completion_tokens || 0;
         }
 
-        const choice = chunk.choices[0];
+        const choice = chunk.choices?.[0];
         if (!choice) continue;
 
         if (choice.finish_reason) {
@@ -194,6 +204,7 @@ router.post("/chat", async (req, res) => {
           console.log(`[chat] searching: "${args.query}"`);
           res.write(`data: ${JSON.stringify({ status: `正在搜索：${args.query}` })}\n\n`);
           const result = await executeWebSearch(args.query);
+          resetIdleTimer();
           console.log(`[chat] search done, result length: ${result.length}`);
           allMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
         } else {
@@ -219,7 +230,7 @@ router.post("/chat", async (req, res) => {
       res.end();
     }
   } catch (err) {
-    clearTimeout(requestTimeout);
+    clearTimeout(idleTimer);
     if (abortController.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
@@ -235,7 +246,7 @@ router.post("/chat", async (req, res) => {
       res.status(500).json({ error: message });
     }
   } finally {
-    clearTimeout(requestTimeout);
+    clearTimeout(idleTimer);
     req.off("aborted", onClientDisconnect);
     res.off("close", onClientDisconnect);
   }

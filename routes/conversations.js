@@ -56,7 +56,8 @@ router.get("/conversations", async (req, res) => {
       .sort((a, b) => Number(b.id) - Number(a.id));
     res.json(list);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[conversations] list error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -105,7 +106,8 @@ router.post("/conversations/search", async (req, res) => {
     results.sort((a, b) => Number(b.id) - Number(a.id));
     res.json(results);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[conversations] search error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -153,7 +155,8 @@ router.get("/conversations/:id", async (req, res) => {
     if (err.code === "ENOENT") {
       return res.status(404).json({ error: "Conversation not found." });
     }
-    res.status(500).json({ error: err.message });
+    console.error("[conversations] get error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -168,16 +171,15 @@ router.put("/conversations/:id", async (req, res) => {
   }
   try {
     const toSave = {
-      id: body.id,
-      title: body.title,
-      messages: body.messages,
+      ...validated.value,
       updatedAt: new Date().toISOString(),
     };
     await atomicWrite(filePath, JSON.stringify(toSave));
-    await updateIndexEntry(body.id, body.title, body.messages.length).catch(() => {});
+    await updateIndexEntry(validated.value.id, validated.value.title, validated.value.messages.length).catch(() => {});
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[conversations] save error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -197,7 +199,8 @@ router.delete("/conversations/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     if (err.code === "ENOENT") return res.json({ ok: true });
-    res.status(500).json({ error: err.message });
+    console.error("[conversations] delete error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
