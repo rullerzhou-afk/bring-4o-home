@@ -1,13 +1,8 @@
-const fs = require("fs");
-const fsp = fs.promises;
-const path = require("path");
 const router = require("express").Router();
 const { readPromptFile, SYSTEM_PATH, MEMORY_PATH } = require("../lib/prompts");
 const { validatePromptPatch } = require("../lib/validators");
-const { atomicWrite, pruneBackups } = require("../lib/config");
+const { atomicWrite, backupPrompts } = require("../lib/config");
 const { withMemoryLock } = require("../lib/auto-learn");
-
-const BACKUPS_DIR = path.join(__dirname, "..", "prompts", "backups");
 
 router.get("/prompts", async (req, res) => {
   const [system, memory] = await Promise.all([
@@ -30,22 +25,8 @@ router.put("/prompts", async (req, res) => {
 
   const { system, memory } = validated.value;
   try {
-    // 备份旧 Prompt
     if (wantBackup) {
-      if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
-      const [oldSystem, oldMemory] = await Promise.all([
-        readPromptFile(SYSTEM_PATH),
-        readPromptFile(MEMORY_PATH),
-      ]);
-      const backupData = {
-        timestamp: new Date().toISOString(),
-        system: oldSystem,
-        memory: oldMemory,
-      };
-      const backupFile = path.join(BACKUPS_DIR, `${Date.now()}.json`);
-      await fsp.writeFile(backupFile, JSON.stringify(backupData, null, 2), "utf-8");
-      await pruneBackups(BACKUPS_DIR);
-      console.log(`Prompt backup saved: ${backupFile}`);
+      await backupPrompts();
     }
 
     const writes = [];

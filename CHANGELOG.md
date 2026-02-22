@@ -9,6 +9,14 @@
 - **发送后智能滚动** — 发送消息后用户消息自动滚到视口顶部，AI 回复在下方逐步展开；scroll-spacer 占位符随回复增长动态缩小，回复足够长时自然过渡到跟随底部滚动
 - **移动端响应式适配** — 小屏（≤768px）侧边栏变为固定覆盖层 + 半透明遮罩，选择对话后自动收起；设置弹窗全屏显示；使用 `100dvh` 适配 iOS 地址栏
 
+### Code Quality (Batch 6 — Cleanup & Performance)
+- **备份逻辑统一** — 两个路由的重复备份代码提取为 `backupPrompts()` 公共函数，内部使用 `atomicWrite` 和异步 `mkdir`，消除同步 I/O 阻塞
+- **模型名过滤** — `validateConfigPatch` 对 model 字段增加字符白名单校验，含换行符等特殊字符的模型名不再通过验证，防止日志注入
+- **context_window 整数化** — `normalizeConfig` 对 `context_window` 加 `Math.round()`，`10.5` 这样的浮点值不再被原样保存
+- **JSON 提取智能回退** — 总结/融合接口的 LLM 输出解析从贪婪正则改为 `extractJsonFromLLM()` 渐进式回退（code block → 从最后一个 `}` 向前尝试 `JSON.parse`），多 JSON 输出或夹杂文字时不再匹配错误内容
+- **索引重建并行化** — `rebuildIndex` 从串行逐个 `await` 改为 `Promise.all` 并行读取，1000 个对话文件时重建速度大幅提升
+- **模型列表扫描上限** — 三个 `models.list()` 循环加 `MAX_MODELS_SCAN=500` 上限 break，API 返回超大模型列表时不再无限迭代
+
 ### Code Quality (Batch 5 — Security & Robustness)
 - **对话保存校验统一** — `validateConversation` 复用 `validateMessages` 统一校验逻辑，过滤多余字段、拒绝未知 content part type、限制 multi-part 数量，保存到磁盘的数据与发送给模型的一样干净
 - **聊天超时改为空闲超时** — 固定 120 秒硬超时改为空闲超时，有 chunk 到达就自动续期，长回复持续产出不再被中途掐断

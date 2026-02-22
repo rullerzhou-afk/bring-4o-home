@@ -5,6 +5,20 @@ const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { getConversationPath, readConfig } = require("../lib/config");
 const { readPromptFile, SYSTEM_PATH, MEMORY_PATH } = require("../lib/prompts");
 
+/** 从 LLM 输出中提取 JSON 对象（兼容 ```json 代码块 + 裸 JSON + 夹杂文字） */
+function extractJsonFromLLM(output) {
+  const codeBlock = output.match(/```json\s*([\s\S]*?)```/);
+  if (codeBlock) return JSON.parse(codeBlock[1].trim());
+  const start = output.indexOf("{");
+  if (start === -1) throw new SyntaxError("No JSON found");
+  let end = output.length;
+  while ((end = output.lastIndexOf("}", end - 1)) > start) {
+    try { return JSON.parse(output.slice(start, end + 1)); }
+    catch { /* try earlier } */ }
+  }
+  throw new SyntaxError("No valid JSON found");
+}
+
 // ===== API: 对话总结生成 Prompt =====
 // 第一步：从对话中提取新发现（不改动现有 prompt）
 const SUMMARIZE_PROMPT = `你是一个对话分析专家。请分析用户与 AI 的多段历史对话，提取有价值的新发现。
@@ -184,10 +198,7 @@ router.post("/conversations/summarize", async (req, res) => {
     // 解析 JSON 输出（兼容 ```json 代码块）
     let parsed;
     try {
-      const jsonMatch = output.match(/```json\s*([\s\S]*?)```/)
-                     || output.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : output;
-      parsed = JSON.parse(jsonStr.trim());
+      parsed = extractJsonFromLLM(output);
     } catch {
       return res.status(502).json({
         error: "模型返回格式异常，无法解析为 JSON。请重试或更换模型。",
@@ -258,10 +269,7 @@ router.post("/conversations/merge-prompt", async (req, res) => {
 
     let parsed;
     try {
-      const jsonMatch = output.match(/```json\s*([\s\S]*?)```/)
-                     || output.match(/\{[\s\S]*"mergedSystem"[\s\S]*\}/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : output;
-      parsed = JSON.parse(jsonStr.trim());
+      parsed = extractJsonFromLLM(output);
     } catch {
       return res.status(502).json({
         error: "模型返回格式异常，无法解析为 JSON。请重试或更换模型。",

@@ -3,6 +3,7 @@ const { openaiClient, arkClient, openrouterClient, formatProviderError } = requi
 
 const OPENAI_ALLOW = /^(gpt-4o(-2024-(05-13|08-06|11-20))?|gpt-4\.1(-mini|-nano)?|o3(-mini)?)$/;
 const ARK_ALLOW = ["glm", "kimi"];
+const MAX_MODELS_SCAN = 500;
 
 router.get("/models", async (req, res) => {
   try {
@@ -10,7 +11,9 @@ router.get("/models", async (req, res) => {
     const openaiModels = [];
     if (openaiClient) {
       try {
+        let oc = 0;
         for await (const m of await openaiClient.models.list()) {
+          if (++oc > MAX_MODELS_SCAN) break;
           if (OPENAI_ALLOW.test(m.id)) {
             openaiModels.push(m.id);
           }
@@ -25,7 +28,9 @@ router.get("/models", async (req, res) => {
     let arkModels = [];
     if (arkClient) {
       try {
+        let ac = 0;
         for await (const m of await arkClient.models.list()) {
+          if (++ac > MAX_MODELS_SCAN) break;
           if (ARK_ALLOW.some((kw) => m.id.toLowerCase().includes(kw))) {
             arkModels.push(m.id);
           }
@@ -40,7 +45,9 @@ router.get("/models", async (req, res) => {
     let orModels = [];
     if (openrouterClient) {
       try {
+        let rc = 0;
         for await (const m of await openrouterClient.models.list()) {
+          if (++rc > MAX_MODELS_SCAN) break;
           const shortId = m.id.includes("/") ? m.id.split("/").pop() : m.id;
           if (OPENAI_ALLOW.test(shortId)) {
             orModels.push(m.id);
