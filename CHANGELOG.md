@@ -2,6 +2,12 @@
 
 ## 2026-02-24
 
+### Security & Critical Fixes (P0 Bug Fixes)
+- **对话索引并发写入 race condition 修复** — `readIndex` 和 `writeIndex` 本身用互斥锁保护，新增 `_readIndexUnsafe` / `_writeIndexUnsafe` 内部函数供锁内调用，`updateIndexEntry` / `removeIndexEntry` / `rebuildIndex` 改用内部函数避免死锁。批量删除 + 同时保存对话时索引不再损坏
+- **图片删除失败导致隐私泄露修复** — `cleanupImages()` 从静默吞错改为 `Promise.allSettled` 记录失败文件名；图片文件名从 `crypto.randomBytes(8)` (64位熵) 改用 `crypto.randomUUID()` (128位熵) 防暴力枚举；新增 `POST /api/conversations/cleanup-orphan-images` 孤儿文件清理端点
+- **对话 ID 碰撞风险修复** — ID 生成从 `Date.now().toString()` 改为 `${Date.now()}${3位随机数}`，1ms 内双击创建对话不再产生重复 ID；同时修复 `getConvYearMonth()` 只提取前 13 位作为时间戳，避免分组逻辑解析到错误的未来日期
+- **Windows 原子写入失败修复** — `atomicWrite()` 在 Windows 平台 (process.platform === "win32") 下 `rename` 前先 `unlink` 目标文件（忽略 ENOENT 错误），兼容 Windows 不支持 rename 覆盖已存在文件的限制
+
 ### New Features
 - **记忆系统结构化存储（P1）** — 长期记忆从纯文本 `memory.md` 升级为 JSON 结构化存储 `memory.json`，三层分类：
   - `identity`（核心身份）：姓名、职业、年龄等不常变的事实

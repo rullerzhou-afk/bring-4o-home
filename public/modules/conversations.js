@@ -93,8 +93,11 @@ export function createConversation() {
     return;
   }
 
+  // 使用时间戳 + 随机后缀防止碰撞（若 1ms 内双击按钮）
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
   const conv = {
-    id: Date.now().toString(),
+    id: `${timestamp}${random}`,
     title: "新对话",
     messages: [],
   };
@@ -203,7 +206,9 @@ export const searchResults = { value: null }; // null = 正常模式，数组 = 
 // ---- 分组辅助 ----
 
 function getConvYearMonth(convId) {
-  const ts = parseInt(convId, 10);
+  // ID 格式可能是纯时间戳或 "时间戳+3位随机数"，只取前 13 位作为 ms 时间戳
+  const tsStr = String(convId).slice(0, 13);
+  const ts = parseInt(tsStr, 10);
   if (isNaN(ts)) return null;
   const d = new Date(ts);
   return { year: d.getFullYear(), month: d.getMonth() }; // month 0-based

@@ -40,11 +40,20 @@ function extractImageFilenames(messages) {
   return filenames;
 }
 
-/** 尽力删除图片文件，失败静默忽略 */
+/** 尽力删除图片文件，记录失败的文件名 */
 async function cleanupImages(filenames) {
-  await Promise.all(
-    filenames.map((f) => fsp.unlink(path.join(IMAGES_DIR, f)).catch(() => {}))
+  const results = await Promise.allSettled(
+    filenames.map((f) => fsp.unlink(path.join(IMAGES_DIR, f)))
   );
+  const failed = [];
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      failed.push(filenames[i]);
+    }
+  });
+  if (failed.length > 0) {
+    console.warn(`[cleanupImages] Failed to delete ${failed.length} file(s):`, failed);
+  }
 }
 
 router.get("/conversations", async (req, res) => {
@@ -287,6 +296,64 @@ router.post("/conversations/:id/generate-title", async (req, res) => {
       return res.status(504).json({ error: "Title generation timed out." });
     }
     console.error("[conversations] generate-title error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * 清理孤儿图片：扫描 data/images/ 中不再被任何对话引用的图片文件
+ * 管理员可定期手动调用此端点，或通过定时任务自动清理
+ */
+router.post("/conversations/cleanup-orphan-images", async (req, res) => {
+  try {
+    // 1. 读取所有对话，收集被引用的图片文件名
+    const files = (await fsp.readdir(CONVERSATIONS_DIR)).filter(
+      (f) => f.endsWith(".json") && f !== "_index.json"
+    );
+    const referenced = new Set();
+    await Promise.all(
+      files.map(async (file) => {
+        try {
+          const raw = await fsp.readFile(path.join(CONVERSATIONS_DIR, file), "utf-8");
+          const conv = JSON.parse(raw);
+          const images = extractImageFilenames(conv.messages || []);
+          images.forEach((img) => referenced.add(img));
+        } catch (err) {
+          console.warn(`[cleanup-orphans] Skip damaged file: ${file}`, err.message);
+        }
+      })
+    );
+
+    // 2. 扫描 images 目录，找出未被引用的文件
+    const allImages = await fsp.readdir(IMAGES_DIR);
+    const orphans = allImages.filter((img) => !referenced.has(img));
+
+    // 3. 删除孤儿文件
+    if (orphans.length === 0) {
+      return res.json({ deleted: 0, orphans: [] });
+    }
+
+    const results = await Promise.allSettled(
+      orphans.map((img) => fsp.unlink(path.join(IMAGES_DIR, img)))
+    );
+    const deleted = [];
+    const failed = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        deleted.push(orphans[i]);
+      } else {
+        failed.push({ file: orphans[i], error: r.reason?.message || "Unknown error" });
+      }
+    });
+
+    console.log(`[cleanup-orphans] Deleted ${deleted.length} orphan image(s)`);
+    if (failed.length > 0) {
+      console.warn(`[cleanup-orphans] Failed to delete ${failed.length} file(s):`, failed);
+    }
+
+    res.json({ deleted: deleted.length, orphans: deleted, failed });
+  } catch (err) {
+    console.error("[cleanup-orphans] error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

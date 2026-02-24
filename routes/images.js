@@ -14,7 +14,8 @@ const imageUpload = multer({
     destination: IMAGES_DIR,
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase() || ".bin";
-      const unique = crypto.randomBytes(8).toString("hex");
+      // 使用 UUID v4 (128 位熵) 防止暴力枚举攻击
+      const unique = crypto.randomUUID();
       cb(null, unique + ext);
     },
   }),

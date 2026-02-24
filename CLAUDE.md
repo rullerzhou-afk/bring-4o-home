@@ -19,9 +19,24 @@ npx vitest run -t "test name"             # 按测试名过滤
 
 无 lint 或构建步骤。`.env` 必须存在且至少配一个 API Key（`OPENAI_API_KEY` / `ARK_API_KEY` / `OPENROUTER_API_KEY` 三选一），否则 `process.exit(1)`。环境变量参考 `.env.example`。
 
+### Code Review with Codex
+
+如果环境中安装了 `codex` CLI（OpenAI Codex），可用于深度代码审查：
+
+```bash
+codex review "Review focus: concurrency bugs, security vulnerabilities, memory leaks, edge cases, performance bottlenecks. Check lib/ routes/ public/modules/" --timeout 600000
+```
+
+**重要提示**: Codex review 非常慢但很细致，需要预留 **10 分钟以上**的执行时间（建议设置 `--timeout 600000` 即 10 分钟超时）。它会逐文件扫描并进行深度静态分析，比常规 linter 更能发现隐蔽的并发问题和边界情况。
+
 ### 测试
 
-使用 vitest，测试文件在 `tests/`。`tests/setup.js` 设置 dummy 环境变量以绕过 `clients.js` 的启动检查。`tests/helpers/mock-clients.js` 提供模拟客户端。测试覆盖后端 `lib/` 模块（validators、config、auth、prompts、search、clients、auto-learn）和前端 `import-worker`。
+使用 vitest，测试文件在 `tests/`。
+
+**测试环境设置:**
+- `tests/setup.js` 设置 dummy 环境变量 (`OPENAI_API_KEY = "test-key-for-vitest"`) 以绕过 `clients.js` 的启动检查
+- `tests/helpers/mock-clients.js` 提供模拟客户端工厂函数，返回带 `chat.completions.create()` 方法的 mock 对象
+- 测试覆盖后端 `lib/` 模块（validators、config、auth、prompts、search、clients、auto-learn）和前端 `import-worker`
 
 ## 技术栈
 
@@ -68,13 +83,19 @@ npx vitest run -t "test name"             # 按测试名过滤
 - `theme.js` — 亮/暗/跟随系统三档主题
 - `import.js` — ChatGPT 数据导入 UI 逻辑（配合 `import-worker.js` Web Worker 后台解析）
 
-**模块设计要点**：前端使用 `<script type="module">` 加载，共享状态通过 `state` 对象封装（避免 ES Module 导出不可变绑定问题）。`getCurrentConv()` 放在 `state.js` 中以打破 `conversations ↔ render` 循环依赖。
+**模块设计要点**：
+- 前端使用 `<script type="module">` 加载，共享状态通过 `state` 对象封装（避免 ES Module 导出不可变绑定问题）
+- `getCurrentConv()` 放在 `state.js` 中以打破 `conversations ↔ render` 循环依赖（conversations 需要 render 渲染消息，render 需要 getCurrentConv 获取当前对话，通过 state 作为中间层解耦）
 
 ### Prompt 系统 (prompts/)
 
 - `system.md` — 人格指令
-- `memory.md` — 用户画像 + 长期记忆（auto-learn 自动追加，带 `[YYYY-MM-DD]` 日期前缀）
+- `memory.json` — 结构化记忆存储（三层分类：identity / preferences / events，每条含 id、text、date、source）
+- `memory.md` — 兼容层（由 `memory.json` 自动生成，供 routes/summarize.js 读取）
 - `config.json` — 模型参数（model、temperature、top_p、presence_penalty、frequency_penalty、context_window）
+
+**记忆系统迁移:**
+首次启动时，`lib/prompts.js: readMemoryStore()` 自动将旧版 `memory.md` 迁移到 `memory.json`。迁移逻辑：解析 Markdown bullet，提取 `[YYYY-MM-DD]` 日期前缀（有日期标记为 `ai_inferred`，无日期标记为 `user_stated`），按 `##` 标题分类到 identity/preferences/events。迁移后两个文件同步更新（memory.json 为主，memory.md 为渲染结果）。
 
 三个文件均可通过前端设置面板实时编辑，无需重启服务。恢复默认时旧设置自动备份到 `prompts/backups/`。
 
@@ -103,14 +124,20 @@ npx vitest run -t "test name"             # 按测试名过滤
 
 ### Auto-Learn 防膨胀
 
-不做内容审查（开源项目不管控用户内容，用户用自己的 API key 有权自主使用）。防膨胀措施：单条事实 ≤80 字，memory 总量 ≤50KB，冷却期默认 300 秒。`resolveAutoLearnModel()` 自动适配渠道格式。
+不做内容审查（开源项目不管控用户内容，用户用自己的 API key 有权自主使用）。防膨胀措施：
+- 单条事实 ≤80 字（`lib/prompts.js: MAX_MEMORY_FACT_LENGTH`）
+- memory.json 总量 ≤50KB（`MAX_MEMORY_TOTAL_LENGTH`）
+- 冷却期默认 300 秒（`AUTO_LEARN_COOLDOWN`）
+- `resolveAutoLearnModel()` 自动适配渠道格式（OpenAI → `gpt-4o-mini`，OpenRouter → `openai/gpt-4o-mini`，火山引擎 → `doubao-1-5-lite-32k-250115`）
+
+**记忆注入优先级:** `lib/prompts.js: selectMemoryForPrompt()` 按 token 预算选择记忆注入上下文——identity 全量注入，preferences/events 按日期降序逐条检查预算（默认 1500 tokens）。
 
 ## 关键设计决策
 
-- 图片上传：前端压缩为 base64 data URL（≤4MB），以 OpenAI vision `image_url` content part 发送；导入的 ChatGPT 图片存服务端 `data/images/`，发送模型前自动转 base64
-- 请求体限制 20MB，`/api/chat` 120 秒超时保护
-- 客户端断开时通过 AbortController 中止上游请求
-- 前端无路由、无打包，Express 直接 serve `public/` 静态文件
-- 三个 OpenAI SDK 客户端实例共用同一个 `openai` 包，通过不同 `baseURL` / `apiKey` 区分渠道
-- `data/conversations/` 和 `data/images/` 在启动时自动创建（`mkdirSync recursive`）
-- 对话列表前端 localStorage 缓存 + 服务端 JSON 文件双向同步
+- **对话 ID 格式:** 10-16 位纯数字字符串（`Date.now()` 生成，`lib/validators.js` 校验）
+- **图片上传:** 前端压缩为 base64 data URL（≤4MB），以 OpenAI vision `image_url` content part 发送；导入的 ChatGPT 图片存服务端 `data/images/`，发送模型前自动转 base64
+- **请求保护:** 请求体限制 20MB，`/api/chat` 120 秒空闲超时（有 chunk 到达就续期），客户端断开时通过 AbortController 中止上游请求
+- **前端架构:** 无路由、无打包，Express 直接 serve `public/` 静态文件
+- **客户端复用:** 三个 OpenAI SDK 客户端实例共用同一个 `openai` 包，通过不同 `baseURL` / `apiKey` 区分渠道
+- **数据初始化:** `data/conversations/` 和 `data/images/` 在启动时自动创建（`mkdirSync recursive`）
+- **双向同步:** 对话列表前端 localStorage 缓存 + 服务端 JSON 文件双向同步（前端读取缓存快速渲染，后台异步拉服务端数据合并）
