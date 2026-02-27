@@ -11,6 +11,16 @@
   - **图片+文档混合**：拖入多个文件时自动分流，图片走图片通道，文档走文件通道，互不干扰
   - **安全加固**：30 秒解析超时防 PDF bomb DoS、上传请求 AbortController 防竞态、动态字符预算（图片+文档 10k / 纯文档 30k）适配 validator 限制、PDF 解析器 try/finally 保证资源释放
 
+### UI/UX Improvements
+- **上传按钮图标** — 从风景照图标改为回形针📎，语义更清晰
+- **文档卡片样式** — 聊天消息中的文档从纯文本 `📎 filename` 改为独立卡片（文件图标 + 文件名 + 类型标签），置于气泡上方，参考 GPT/Claude 风格
+- **人格版本管理优化**：
+  - 保存版本改为手动触发（新增"保存版本"按钮），取消保存时自动备份
+  - 版本历史支持删除单个版本（× 按钮 + 确认弹窗）
+  - 新增 `POST /api/prompts/backup` 手动备份端点、`DELETE /api/prompts/versions/:ts` 删除端点
+- **默认人格指令改为空白** — 新用户首次打开看到灰字引导（建议结构 + 底层基调），可点击"插入模板"填入完整预设
+- **输出格式规则硬编码** — 善用格式、引用块区隔、结构化要点三条规则始终注入 system prompt，用户不可覆盖
+
 ### Stability Fixes (Phase 0 前置债务清理)
 - **Token 认证锁修复** — 用户取消认证弹框后不再卡死，无需刷新页面即可重新输入 (`public/modules/api.js`)
 - **ResizeObserver 泄漏修复** — 短回复和切换对话时 spacer observer 保底断开，长会话不再遗留大量活跃 observer (`public/modules/chat.js`)
