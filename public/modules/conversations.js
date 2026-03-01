@@ -80,10 +80,11 @@ export async function saveConversationToServer(conv) {
   });
 }
 
-export function saveConversations() {
+export function saveConversations(explicitConv) {
   saveLocalCache();
-  const conv = getCurrentConv();
-  if (conv && conv.messages) {
+  const conv = explicitConv || getCurrentConv();
+  // 确认对话仍在列表中，防止异步回调复活已删除的对话
+  if (conv && conv.messages && state.conversations.some((c) => c.id === conv.id)) {
     saveConversationToServer(conv);
   }
 }

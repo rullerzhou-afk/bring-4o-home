@@ -306,9 +306,9 @@ some random text`;
   // ── AUTO_LEARN_COOLDOWN ───────────────────────────────────────
 
   describe('AUTO_LEARN_COOLDOWN', () => {
-    it('defaults to 300', () => {
+    it('defaults to 180', () => {
       const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
-      expect(mod.AUTO_LEARN_COOLDOWN).toBe(300);
+      expect(mod.AUTO_LEARN_COOLDOWN).toBe(180);
     });
 
     it('reads from env', () => {

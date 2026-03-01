@@ -156,7 +156,7 @@ export async function sendMessage() {
     renderChatList();
   }
 
-  saveConversations();
+  saveConversations(conv);
   renderMessages();
 
   // 添加占位符撑开底部，使用户消息可以滚动到视口顶部
@@ -384,7 +384,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
     if (state.streamAbortedBySwitch) {
       state.streamAbortedBySwitch = false;
       if (_spacerObserver) { _spacerObserver.disconnect(); _spacerObserver = null; }
-      saveConversations();
+      saveConversations(conv);
       stopStreamFollow();
       setStreaming(false);
       return;
@@ -476,7 +476,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
   // 长回复：spacer 已被 ResizeObserver 在流式阶段移除，此处无操作
   // spacer 会在下次 renderMessages()（发新消息/切换对话）时自然清理
 
-  saveConversations();
+  saveConversations(conv);
   setStreaming(false);
 
   // 滚动放到下一帧，避免和 DOM 更新冲突
@@ -504,7 +504,7 @@ async function generateTitle(conv) {
     const { title } = await res.json();
     if (title) {
       conv.title = title;
-      saveConversations();
+      saveConversations(conv);
       renderChatList();
     }
   } catch {
@@ -598,7 +598,7 @@ export function editMessage(msgIndex) {
 
     // 截断后续消息
     conv.messages.length = msgIndex + 1;
-    saveConversations();
+    saveConversations(conv);
     renderMessages();
 
     // 添加占位符并滚动到编辑的消息
@@ -617,7 +617,7 @@ export function editMessage(msgIndex) {
 }
 
 // ===== 重新生成助手回复 =====
-export function regenerateMessage(msgIndex) {
+export async function regenerateMessage(msgIndex) {
   if (state.isStreaming) return;
 
   const conv = getCurrentConv();
@@ -627,7 +627,7 @@ export function regenerateMessage(msgIndex) {
 
   // 截断从当前 assistant 消息开始的所有内容
   conv.messages.length = msgIndex;
-  saveConversations();
+  saveConversations(conv);
   renderMessages();
 
   // 添加占位符并滚动到最后一条消息
@@ -642,7 +642,7 @@ export function regenerateMessage(msgIndex) {
 
   setStreaming(true);
   startStreamFollow();
-  streamAssistantReply(conv, null);
+  await streamAssistantReply(conv, null);
 }
 
 export function setStreaming(val) {
