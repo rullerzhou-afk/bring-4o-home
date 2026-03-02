@@ -51,6 +51,16 @@ const memoryAddCategory = document.getElementById("memory-add-category");
 const memoryAddText = document.getElementById("memory-add-text");
 const memoryAddBtn = document.getElementById("memory-add-btn");
 
+// 记忆工具栏控件
+const memorySearch = document.getElementById("memory-search");
+const memorySearchClear = document.getElementById("memory-search-clear");
+const memoryExportBtn = document.getElementById("memory-export-btn");
+const memoryImportBtn = document.getElementById("memory-import-btn");
+const memoryImportFile = document.getElementById("memory-import-file");
+
+const IMPORTANCE_STARS = { 1: "\u2605", 2: "\u2605\u2605", 3: "\u2605\u2605\u2605" };
+const IMPORTANCE_LABELS = { 1: "\u4e34\u65f6", 2: "\u4e00\u822c", 3: "\u6838\u5fc3" };
+
 // 人格版本管理控件
 const systemToolbar = document.getElementById("system-toolbar");
 const insertTemplateBtn = document.getElementById("insert-template-btn");
@@ -99,14 +109,28 @@ function renderMemoryList(store) {
 
     container.innerHTML = items
       .map(
-        (item) =>
-          `<div class="memory-item${item.stale ? ' memory-stale' : ''}" data-id="${item.id}" data-category="${category}">
+        (item) => {
+          const imp = item.importance || 2;
+          const stars = IMPORTANCE_STARS[imp] || IMPORTANCE_STARS[2];
+          const label = IMPORTANCE_LABELS[imp] || "";
+          const useCountHtml = item.useCount > 0
+            ? `<span class="memory-use-count">\u00d7${item.useCount}</span>`
+            : "";
+          return `<div class="memory-item${item.stale ? ' memory-stale' : ''}" data-id="${item.id}" data-category="${category}">
+            <span class="memory-importance" data-level="${imp}" title="${label}">${stars}</span>
             <span class="memory-text">${escapeHtml(item.text)}</span>
+            ${useCountHtml}
             <span class="memory-date">${item.date}</span>
             <button class="memory-delete-btn" title="删除">&times;</button>
-          </div>`
+          </div>`;
+        }
       )
       .join("");
+  }
+
+  // 如果搜索框有内容，重新触发过滤
+  if (memorySearch && memorySearch.value.trim()) {
+    applyMemoryFilter(memorySearch.value.trim().toLowerCase());
   }
 }
 
@@ -175,6 +199,142 @@ memoryAddText.addEventListener("keydown", (e) => {
     e.preventDefault();
     addMemoryItem();
   }
+});
+
+// ===== 记忆搜索过滤 =====
+
+function applyMemoryFilter(query) {
+  const items = memoryStructured.querySelectorAll(".memory-item");
+  items.forEach((el) => {
+    const text = el.querySelector(".memory-text")?.textContent?.toLowerCase() || "";
+    el.classList.toggle("memory-filtered", !!query && !text.includes(query));
+  });
+  // 隐藏全部条目都被过滤的 category
+  memoryStructured.querySelectorAll(".memory-category").forEach((cat) => {
+    const visible = cat.querySelectorAll(".memory-item:not(.memory-filtered)");
+    cat.classList.toggle("memory-filtered", !!query && visible.length === 0);
+  });
+}
+
+memorySearch.addEventListener("input", () => {
+  const q = memorySearch.value.trim().toLowerCase();
+  memorySearchClear.classList.toggle("hidden", !q);
+  applyMemoryFilter(q);
+});
+
+memorySearchClear.addEventListener("click", () => {
+  memorySearch.value = "";
+  memorySearchClear.classList.add("hidden");
+  applyMemoryFilter("");
+});
+
+// ===== 记忆导出 =====
+
+memoryExportBtn.addEventListener("click", () => {
+  if (!state.memoryStore) {
+    saveStatus.textContent = "没有记忆可导出";
+    setTimeout(() => (saveStatus.textContent = ""), 2000);
+    return;
+  }
+
+  const exportData = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    identity: state.memoryStore.identity || [],
+    preferences: state.memoryStore.preferences || [],
+    events: state.memoryStore.events || [],
+  };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `memoria-memory-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ===== 记忆导入 =====
+
+memoryImportBtn.addEventListener("click", () => {
+  memoryImportFile.click();
+});
+
+memoryImportFile.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  memoryImportFile.value = ""; // 允许重复选同文件
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+
+      // 校验：至少要有可解析的记忆条目
+      const categories = ["identity", "preferences", "events"];
+      const hasItems = categories.some((c) => Array.isArray(data[c]) && data[c].length > 0);
+      if (!hasItems) {
+        alert("导入失败：JSON 文件中没有找到有效的记忆条目（需要 identity / preferences / events 数组）");
+        return;
+      }
+
+      // 校验每条都有 text
+      for (const cat of categories) {
+        if (!Array.isArray(data[cat])) continue;
+        for (const item of data[cat]) {
+          if (!item.text || typeof item.text !== "string") {
+            alert(`导入失败：${cat} 中有条目缺少 text 字段`);
+            return;
+          }
+        }
+      }
+
+      const replace = confirm(
+        `检测到 ${categories.reduce((n, c) => n + (data[c]?.length || 0), 0)} 条记忆。\n\n「确定」= 替换现有记忆\n「取消」= 合并（追加不重复条目）`
+      );
+
+      if (!state.memoryStore) {
+        state.memoryStore = { version: 1, identity: [], preferences: [], events: [] };
+      }
+
+      const normalizeItems = (items, offset) => {
+        const now = Date.now();
+        return items.map((item, i) => ({
+          id: item.id || `m_${now + offset + i}${String(i % 1000).padStart(3, "0")}`,
+          text: item.text,
+          date: item.date || new Date().toISOString().slice(0, 10),
+          source: item.source || "user_stated",
+          importance: item.importance || 2,
+          useCount: item.useCount || 0,
+          lastReferencedAt: item.lastReferencedAt || null,
+          stale: item.stale || false,
+        }));
+      };
+
+      let counter = 0;
+      for (const cat of categories) {
+        const incoming = Array.isArray(data[cat]) ? normalizeItems(data[cat], counter) : [];
+        counter += incoming.length;
+
+        if (replace) {
+          state.memoryStore[cat] = incoming;
+        } else {
+          // 合并：按 text 去重
+          const existing = state.memoryStore[cat] || [];
+          const existingTexts = new Set(existing.map((m) => m.text));
+          const newItems = incoming.filter((m) => !existingTexts.has(m.text));
+          state.memoryStore[cat] = existing.concat(newItems);
+        }
+      }
+
+      renderMemoryList(state.memoryStore);
+      saveStatus.textContent = replace ? "已替换记忆，请点保存生效" : "已合并记忆，请点保存生效";
+    } catch (err) {
+      alert("导入失败：JSON 解析错误 — " + err.message);
+    }
+  };
+  reader.readAsText(file);
 });
 
 export async function loadConfigPanel() {

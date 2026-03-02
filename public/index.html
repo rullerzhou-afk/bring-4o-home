@@ -257,6 +257,29 @@
               <p class="config-hint">在 AI 回复底部显示引用了哪些记忆</p>
             </div>
             <div class="config-section-title">长期记忆</div>
+            <div class="memory-toolbar">
+              <div class="memory-search-wrapper">
+                <input type="text" id="memory-search" placeholder="搜索记忆..." />
+                <button id="memory-search-clear" class="memory-search-clear hidden" type="button">&times;</button>
+              </div>
+              <div class="memory-toolbar-actions">
+                <button id="memory-export-btn" class="memory-action-btn" type="button" title="导出记忆">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                </button>
+                <button id="memory-import-btn" class="memory-action-btn" type="button" title="导入记忆">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </button>
+                <input type="file" id="memory-import-file" accept=".json" hidden />
+              </div>
+            </div>
             <div id="memory-structured">
               <div class="memory-category" data-category="identity">
                 <h4>核心身份</h4>

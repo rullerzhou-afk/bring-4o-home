@@ -1863,6 +1863,119 @@ body {
   margin-top: -4px;
 }
 
+/* ===== 记忆工具栏 ===== */
+.memory-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.memory-search-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.memory-search-wrapper input {
+  width: 100%;
+  background: var(--bg-input, #f5f5f5);
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  color: var(--text-primary, #333);
+  font-size: 13px;
+  padding: 7px 28px 7px 10px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.memory-search-wrapper input:focus {
+  border-color: var(--accent, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.memory-search-wrapper input::placeholder {
+  color: var(--text-secondary, #999);
+}
+
+.memory-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary, #999);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.memory-search-clear:hover {
+  color: var(--text-primary);
+}
+
+.memory-toolbar-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.memory-action-btn {
+  background: transparent;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.memory-action-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent, #3b82f6);
+  background: var(--hover-bg);
+}
+
+/* ===== 记忆徽章 ===== */
+.memory-importance {
+  font-size: 12px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.memory-importance[data-level="1"] {
+  color: var(--text-secondary, #999);
+}
+
+.memory-importance[data-level="2"] {
+  color: #f59e0b;
+}
+
+.memory-importance[data-level="3"] {
+  color: #ef4444;
+}
+
+.memory-use-count {
+  font-size: 11px;
+  color: var(--accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 10px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* ===== 记忆搜索过滤 ===== */
+.memory-item.memory-filtered,
+.memory-category.memory-filtered {
+  display: none;
+}
+
 .config-panel {
   display: flex;
   flex-direction: column;
