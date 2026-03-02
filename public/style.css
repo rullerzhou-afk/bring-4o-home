@@ -1940,6 +1940,15 @@ body {
   background: var(--hover-bg);
 }
 
+.memory-action-btn.loading {
+  opacity: 0.5;
+  cursor: wait;
+  pointer-events: none;
+}
+.memory-action-btn.loading svg {
+  animation: spin 1s linear infinite;
+}
+
 /* ===== 记忆徽章 ===== */
 .memory-importance {
   font-size: 12px;

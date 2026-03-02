@@ -1502,4 +1502,161 @@ some random text`;
       expect(result[1]._dedupMerge).toBeUndefined();
     });
   });
+
+  // ── performReflection ──────────────────────────────────
+
+  describe('performReflection', () => {
+    const prompts = require('../lib/prompts');
+    let readMemoryStoreSpy;
+    let writeMemoryStoreSpy;
+
+    function makeClient(content) {
+      return {
+        chat: {
+          completions: {
+            create: vi.fn().mockResolvedValue({
+              choices: [{ message: { content } }],
+            }),
+          },
+        },
+      };
+    }
+
+    /** Spy on fresh clients module after loadAutoLearn reloads it */
+    function spyOnGetClient(mockClient) {
+      const freshClients = require('../lib/clients');
+      return vi.spyOn(freshClients, 'getClientForModel').mockReturnValue(mockClient);
+    }
+
+    beforeEach(() => {
+      readMemoryStoreSpy = vi.spyOn(prompts, 'readMemoryStore');
+      writeMemoryStoreSpy = vi.spyOn(prompts, 'writeMemoryStore').mockResolvedValue();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('skips when events < 3 and does not call LLM', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000001', text: '事件1', date: '2026-03-01', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000002', text: '事件2', date: '2026-03-01', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+        ],
+      });
+
+      const getClientSpy = spyOnGetClient(makeClient(''));
+
+      const result = await mod.performReflection();
+
+      expect(result).toEqual({ insights: [], skipped: 'not_enough_events' });
+      expect(getClientSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns no_patterns when LLM outputs NONE', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000001', text: '事件1', date: '2026-03-01', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000002', text: '事件2', date: '2026-02-28', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000003', text: '事件3', date: '2026-02-27', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+        ],
+      });
+      spyOnGetClient(makeClient('NONE'));
+
+      const result = await mod.performReflection();
+
+      expect(result).toEqual({ insights: [], skipped: 'no_patterns' });
+      expect(writeMemoryStoreSpy).not.toHaveBeenCalled();
+    });
+
+    it('applies ADD insights with importance forced to 3', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000001', text: '在学Python', date: '2026-03-01', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000002', text: '在学Rust', date: '2026-02-28', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000003', text: '在学Go', date: '2026-02-27', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+        ],
+      });
+      spyOnGetClient(makeClient('- ADD [preferences] [importance:1] 持续关注编程语言学习'));
+
+      const result = await mod.performReflection();
+
+      expect(result.insights).toHaveLength(1);
+      expect(result.insights[0].op).toBe('add');
+      expect(result.insights[0].text).toBe('持续关注编程语言学习');
+      // importance forced to 3 regardless of LLM output
+      expect(result.insights[0].importance).toBe(3);
+      expect(writeMemoryStoreSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('filters out UPDATE, DELETE, and ADD [events] operations', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000001', text: '事件1', date: '2026-03-01', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000002', text: '事件2', date: '2026-02-28', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000003', text: '事件3', date: '2026-02-27', source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null },
+        ],
+      });
+      spyOnGetClient(makeClient(
+        '- UPDATE [m_1000000000001] [events] 更新的事件\n- DELETE [m_1000000000002]\n- ADD [events] 阶段性总结\n- ADD [preferences] 有效洞察'
+      ));
+
+      const result = await mod.performReflection();
+
+      // Only ADD [preferences] should survive (UPDATE/DELETE filtered, ADD [events] excluded)
+      expect(result.insights).toHaveLength(1);
+      expect(result.insights[0].text).toBe('有效洞察');
+      expect(result.insights[0].importance).toBe(3);
+    });
+
+    it('truncates insights exceeding MAX_REFLECT_INSIGHTS (5)', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: Array.from({ length: 10 }, (_, i) => ({
+          id: `m_${1000000000000 + i}`,
+          text: `事件${i}`,
+          date: '2026-03-01',
+          source: 'ai_inferred',
+          importance: 2,
+          useCount: 0,
+          lastReferencedAt: null,
+        })),
+      });
+      const lines = Array.from({ length: 8 }, (_, i) =>
+        `- ADD [preferences] [importance:2] 洞察${i}`
+      ).join('\n');
+      spyOnGetClient(makeClient(lines));
+
+      const result = await mod.performReflection();
+
+      // Should be truncated to 5
+      expect(result.insights.length).toBeLessThanOrEqual(5);
+    });
+
+    it('REFLECT_PROMPT is a non-empty string containing ADD', () => {
+      const mod = require('../lib/auto-learn');
+      expect(typeof mod.REFLECT_PROMPT).toBe('string');
+      expect(mod.REFLECT_PROMPT.length).toBeGreaterThan(0);
+      expect(mod.REFLECT_PROMPT).toContain('ADD');
+    });
+  });
 });

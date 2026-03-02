@@ -11,6 +11,7 @@ const {
   applyMemoryOperations,
   performDecayCheck,
   performPromotionCheck,
+  performReflection,
   withMemoryLock,
 } = require("../lib/auto-learn");
 
@@ -196,6 +197,23 @@ router.post("/memory/auto-learn/undo", async (req, res) => {
   } catch (err) {
     console.error("Auto-learn undo error:", err.message);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/memory/reflect", async (req, res) => {
+  try {
+    const result = await performReflection();
+
+    if (result.skipped) {
+      console.log(`Reflect: skipped (${result.skipped})`);
+      return res.json(result);
+    }
+
+    console.log(`Reflect: ${result.insights.length} insights generated`);
+    return res.json(result);
+  } catch (err) {
+    console.error("Reflect error:", err.message);
+    return res.status(500).json({ error: "反思失败，请稍后再试" });
   }
 });
 

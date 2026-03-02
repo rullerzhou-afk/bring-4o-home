@@ -1,5 +1,5 @@
 import { state, modelSelector, inputEl, welcomeGreetingEl, getCurrentConv, randomGreeting } from "./state.js";
-import { apiFetch, readErrorMessage } from "./api.js";
+import { apiFetch, readErrorMessage, showToast } from "./api.js";
 import { initImportTab } from "./import.js";
 import { CATEGORY_LABELS } from "./render.js";
 
@@ -57,6 +57,7 @@ const memoryAddBtn = document.getElementById("memory-add-btn");
 // 记忆工具栏控件
 const memorySearch = document.getElementById("memory-search");
 const memorySearchClear = document.getElementById("memory-search-clear");
+const memoryReflectBtn = document.getElementById("memory-reflect-btn");
 const memoryExportBtn = document.getElementById("memory-export-btn");
 const memoryImportBtn = document.getElementById("memory-import-btn");
 const memoryImportFile = document.getElementById("memory-import-file");
@@ -229,6 +230,50 @@ memorySearchClear.addEventListener("click", () => {
   memorySearch.value = "";
   memorySearchClear.classList.add("hidden");
   applyMemoryFilter("");
+});
+
+// ===== 记忆整合（反思） =====
+
+memoryReflectBtn.addEventListener("click", async () => {
+  if (memoryReflectBtn.classList.contains("loading")) return;
+  memoryReflectBtn.classList.add("loading");
+  try {
+    const res = await apiFetch("/api/memory/reflect", { method: "POST" });
+    if (!res.ok) {
+      const errMsg = await readErrorMessage(res).catch(() => `HTTP ${res.status}`);
+      showToast(errMsg);
+      return;
+    }
+    const data = await res.json();
+    if (data.skipped === "not_enough_events") {
+      showToast("近期动态不足 3 条，暂无法整合", "warning");
+      return;
+    }
+    if (data.skipped === "no_patterns") {
+      showToast("未发现可归纳的模式", "warning");
+      return;
+    }
+    if (data.skipped === "over_limit") {
+      showToast("记忆存储已满，请先清理旧记忆", "warning");
+      return;
+    }
+    if (data.insights?.length > 0) {
+      showToast(`成功提炼 ${data.insights.length} 条洞察`);
+      // 刷新记忆列表
+      const storeRes = await apiFetch("/api/prompts");
+      if (storeRes.ok) {
+        const storeData = await storeRes.json();
+        if (storeData.memoryStore) {
+          state.memoryStore = storeData.memoryStore;
+          renderMemoryList(storeData.memoryStore);
+        }
+      }
+    }
+  } catch {
+    showToast("整合失败，请稍后再试");
+  } finally {
+    memoryReflectBtn.classList.remove("loading");
+  }
 });
 
 // ===== 记忆导出 =====
