@@ -4,17 +4,23 @@
 sample_rate: 16000
 channels: 1
 
-# --- Server connection (Step 2+) ---
-# memoria_url: "http://127.0.0.1:3000"
+# --- Server connection ---
+memoria_url: "http://127.0.0.1:3000"
 # NOTE: Use ADMIN_TOKEN env var for secrets. Never put real tokens in this file.
-
-# --- TTS (Step 3+) ---
-# tts_voice: "alloy"
 
 # --- VAD (Step 2) ---
 vad_threshold: 0.5
-silence_duration: 0.8    # 秒，静音多久算说完
+silence_duration: 1.5    # 秒，静音多久算说完
 max_recording: 60        # 秒，录音上限
 
-# --- Wake (Step 4+) ---
+# --- STT / Session (Step 3) ---
+language: "zh"
+session_timeout: 30      # 分钟，超时新建对话
+idle_remind_m: 2         # 分钟，空闲多久提醒（0=禁用）
+idle_remind_wait_s: 15   # 秒，提醒后等待多久进入休眠
+
+# --- TTS (Step 4+) ---
+# tts_voice: "alloy"
+
+# --- Wake (Step 5+) ---
 # wake_word: "hey memoria"

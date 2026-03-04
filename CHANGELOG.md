@@ -2,6 +2,15 @@
 
 ## 2026-03-04
 
+### New Features — Voice Plan Step 3: STT + session management + idle reminder
+- **录音转文字** — 按 Space 说话后自动将录音发送至 Whisper STT，终端打印识别文字 `You: ...`
+- **对话持久化** — 语音消息自动同步到 Web 端，侧边栏可看到"语音对话 MM/DD"
+- **会话超时管理** — 30 分钟无活动自动新建对话（可配 `session_timeout`）
+- **空闲休眠提醒** — 2 分钟无操作播放提醒音，15 秒内无响应播放再见音进入 SLEEPING 状态
+- **异步架构** — talk_loop 迁移到 asyncio 事件驱动，keyboard→asyncio 桥接，为 Step 4 流水线做准备
+- **自动读取 .env** — Python 语音服务自动从项目根目录 `.env` 读取 `ADMIN_TOKEN` 等配置，无需手动传参
+- **Memoria API 客户端** — httpx 异步 HTTP 客户端，绕过系统代理（`trust_env=False`），支持创建对话、追加消息、STT 转写
+
 ### New Features — Voice Plan Step 2: Talk key + VAD end-of-speech detection
 - **按键说话模式** — `python main.py --talk`：按 Space 开始说话，Silero VAD V5 自动检测说完（静音 0.8 秒），打印录音时长和峰值振幅
 - **Silero VAD V5 封装** — ONNX 推理，首次运行自动下载模型（~2.2MB），逐帧 512 samples 处理，返回语音概率

@@ -1,6 +1,7 @@
 """Memoria Voice Service — entry point."""
 
 import argparse
+import asyncio
 import sys
 
 
@@ -29,49 +30,163 @@ def test_audio() -> None:
     print("测试完成 ✓")
 
 
-def talk_loop() -> None:
-    """Space-to-talk loop with VAD end-of-speech detection."""
+# ----------------------------------------------------------------------
+# Async talk loop
+# ----------------------------------------------------------------------
+
+async def wait_for_space(
+    space_event: asyncio.Event,
+    timeout: float | None,
+) -> bool:
+    """Wait for the space key.  Returns True if pressed, False on timeout.
+
+    Caller must clear() the event beforehand if stale presses should be
+    discarded (e.g. after PROCESSING).  We do NOT clear here so that a
+    press during tone playback is not lost.
+    """
+    try:
+        if timeout is None:
+            await space_event.wait()
+        else:
+            await asyncio.wait_for(space_event.wait(), timeout)
+        return True
+    except asyncio.TimeoutError:
+        return False
+
+
+async def talk_loop() -> None:
+    """Async space-to-talk loop: record → STT → persist to Memoria."""
     import keyboard
     from config import cfg
     from state_machine import StateMachine, State
     from vad import SileroVAD
     import audio_io
+    from audio_io import REMIND_PATTERN, BYE_PATTERN
+    from memoria_client import MemoriaClient
+    from session import Session
 
     sr = cfg["sample_rate"]
     silence_ms = int(cfg["silence_duration"] * 1000)
     max_sec = cfg["max_recording"]
     threshold = cfg["vad_threshold"]
+    language = cfg["language"]
+    idle_remind_m = cfg["idle_remind_m"]
+    idle_remind_wait_s = cfg["idle_remind_wait_s"]
 
     sm = StateMachine()
     vad = SileroVAD(threshold=threshold)
+    client = MemoriaClient(
+        base_url=cfg["memoria_url"],
+        admin_token=cfg["admin_token"],
+    )
+    session = Session(client, timeout_m=cfg["session_timeout"])
+
+    # Bridge keyboard events → asyncio
+    loop = asyncio.get_running_loop()
+    space_event = asyncio.Event()
+    keyboard.on_press_key("space", lambda _: loop.call_soon_threadsafe(space_event.set))
 
     print("=== Memoria Voice — Talk Mode ===")
     print("Press Space to talk, Ctrl+C to quit.\n")
 
+    # Try creating initial conversation (non-fatal if server is down)
+    try:
+        await session.ensure_conversation()
+    except Exception as e:
+        print(f"Warning: 无法连接服务器 ({e})，稍后重试\n")
+
     try:
         while True:
-            print(f"[{sm.state.name}] Press Space to talk...")
-            keyboard.wait("space")
+            # ============================================================
+            # IDLE — wait for space or idle timeout
+            # ============================================================
+            if sm.state == State.IDLE:
+                idle_timeout = idle_remind_m * 60 if idle_remind_m > 0 else None
+                space_event.clear()  # discard stale presses from PROCESSING
+                print(f"[{sm.state.name}] Press Space to talk...")
+                pressed = await wait_for_space(space_event, timeout=idle_timeout)
 
-            sm.transition(State.LISTENING)
-            audio_io.play_tone()
-            print(f"[{sm.state.name}] 正在听...")
+                if not pressed:
+                    # Idle timeout → remind
+                    print(f"[{sm.state.name}] 还在吗？")
+                    await asyncio.to_thread(audio_io.play_tone_pattern, REMIND_PATTERN)
+                    pressed = await wait_for_space(space_event, timeout=idle_remind_wait_s)
+                    if not pressed:
+                        # No response → sleep
+                        print(f"[{sm.state.name}] 晚安～")
+                        await asyncio.to_thread(audio_io.play_tone_pattern, BYE_PATTERN)
+                        sm.transition(State.SLEEPING)
+                        continue
 
-            vad.reset()
-            audio = audio_io.stream_record_with_vad(
-                vad,
-                sample_rate=sr,
-                silence_ms=silence_ms,
-                max_seconds=max_sec,
-            )
+                # Space pressed → ensure conversation exists
+                try:
+                    await session.ensure_conversation()
+                except Exception as e:
+                    print(f"Error: 创建对话失败 ({e})")
 
-            sm.transition(State.IDLE)
-            duration = len(audio) / sr
-            peak = float(audio.max()) if len(audio) > 0 else 0.0
-            print(f"录音结束 — {duration:.1f}s, peak: {peak:.4f}\n")
+                # Start listening
+                sm.transition(State.LISTENING)
+                await asyncio.to_thread(audio_io.play_tone)
+                print(f"[{sm.state.name}] 正在听...")
+
+                vad.reset()
+                audio = await asyncio.to_thread(
+                    audio_io.stream_record_with_vad,
+                    vad,
+                    sample_rate=sr,
+                    silence_ms=silence_ms,
+                    max_seconds=max_sec,
+                )
+
+                duration = len(audio) / sr
+                if duration < 0.3:
+                    print("(录音太短，已忽略)\n")
+                    sm.transition(State.IDLE)
+                    continue
+
+                # Transcribe
+                sm.transition(State.PROCESSING)
+                print(f"[{sm.state.name}] 识别中... ({duration:.1f}s)")
+
+                try:
+                    wav_bytes = audio_io.numpy_to_wav_bytes(audio, sample_rate=sr)
+                    text = await client.transcribe(wav_bytes, language=language)
+                except Exception as e:
+                    print(f"Error: STT 失败 ({e})\n")
+                    sm.transition(State.IDLE)
+                    continue
+
+                if not text or not text.strip():
+                    print("(未识别到内容)\n")
+                    sm.transition(State.IDLE)
+                    continue
+
+                print(f"You: {text}")
+
+                # Persist to server (non-fatal)
+                try:
+                    await session.add_user_message(text)
+                except Exception as e:
+                    print(f"Warning: 消息保存失败 ({e})")
+
+                sm.transition(State.IDLE)
+                # ← Step 4: /api/chat → TTS → SPEAKING
+
+            # ============================================================
+            # SLEEPING — wait for space to wake up
+            # ============================================================
+            elif sm.state == State.SLEEPING:
+                space_event.clear()
+                print(f"[{sm.state.name}] Press Space to wake up...")
+                await wait_for_space(space_event, timeout=None)
+                print("(醒来了)\n")
+                sm.transition(State.IDLE)
 
     except KeyboardInterrupt:
         print("\nBye!")
+    finally:
+        keyboard.unhook_all()
+        await client.close()
         sm.reset()
 
 
@@ -85,7 +200,7 @@ def main() -> None:
     parser.add_argument(
         "--talk",
         action="store_true",
-        help="Space-to-talk mode with VAD end-of-speech detection",
+        help="Space-to-talk mode with STT and conversation persistence",
     )
     args = parser.parse_args()
 
@@ -99,7 +214,7 @@ def main() -> None:
 
     if args.talk:
         try:
-            talk_loop()
+            asyncio.run(talk_loop())
         except Exception as e:
             print(f"Talk mode failed: {e}", file=sys.stderr)
             sys.exit(1)
@@ -107,7 +222,7 @@ def main() -> None:
 
     print("Usage: python main.py --test-audio | --talk")
     print("  --test-audio   Record 5s and play back")
-    print("  --talk         Space-to-talk with VAD")
+    print("  --talk         Space-to-talk with STT")
     sys.exit(0)
 
 

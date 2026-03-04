@@ -12,9 +12,13 @@ _DEFAULTS = {
     "admin_token": "",
     "tts_voice": "alloy",
     "vad_threshold": 0.5,
-    "silence_duration": 0.8,
+    "silence_duration": 1.5,
     "max_recording": 60,
     "wake_word": "hey memoria",
+    "language": "zh",
+    "session_timeout": 30,
+    "idle_remind_m": 2,
+    "idle_remind_wait_s": 15,
 }
 
 # Environment variable name → config key
@@ -27,11 +31,44 @@ _ENV_MAP = {
     "VAD_THRESHOLD": "vad_threshold",
     "SILENCE_DURATION": "silence_duration",
     "MAX_RECORDING": "max_recording",
+    "LANGUAGE": "language",
+    "SESSION_TIMEOUT": "session_timeout",
+    "IDLE_REMIND_M": "idle_remind_m",
+    "IDLE_REMIND_WAIT_S": "idle_remind_wait_s",
 }
+
+
+_dotenv_loaded = False
+
+
+def _load_dotenv() -> None:
+    """Read the project root .env file into os.environ (once, won't overwrite)."""
+    global _dotenv_loaded
+    if _dotenv_loaded:
+        return
+    _dotenv_loaded = True
+    dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+    if not os.path.isfile(dotenv_path):
+        return
+    with open(dotenv_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.split("#")[0].strip()  # strip inline comments
+            # Strip surrounding quotes (dotenv-compatible)
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
+            # Don't overwrite existing env vars (explicit > .env)
+            if key and key not in os.environ:
+                os.environ[key] = value
 
 
 def load_config(path: str | None = None) -> dict:
     """Load config from YAML, fall back to defaults, apply env overrides."""
+    _load_dotenv()
     cfg = dict(_DEFAULTS)
 
     yaml_path = path or os.path.join(os.path.dirname(__file__), "config.yaml")

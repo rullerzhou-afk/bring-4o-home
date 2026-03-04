@@ -30,36 +30,42 @@ def play(audio_data: np.ndarray, sample_rate: int = 16000) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 2 additions
+# Tone generation helpers
 # ---------------------------------------------------------------------------
 
-def play_tone(
-    freq_hz: int = 880,
-    duration_ms: int = 300,
-) -> None:
-    """Play a two-tone confirmation beep with fade-in/out.
+_PLAY_SR = 48000  # playback sample rate — most sound cards handle natively
 
-    Uses 48000 Hz for playback — most sound cards handle this natively.
-    Independent of the recording sample rate.
-    """
-    play_sr = 48000
-    n_samples = int(play_sr * duration_ms / 1000)
+
+def _generate_tone(
+    freq_hz: int,
+    duration_ms: int,
+    amplitude: float = 0.35,
+    harmonics: bool = False,
+) -> np.ndarray:
+    """Generate a single sine tone with 10 ms fade-in/out."""
+    n_samples = int(_PLAY_SR * duration_ms / 1000)
     t = np.linspace(0, duration_ms / 1000, n_samples, endpoint=False, dtype=np.float32)
-    # Base tone + octave harmonic for a brighter, more noticeable sound
-    tone = 0.45 * np.sin(2 * np.pi * freq_hz * t) + 0.2 * np.sin(2 * np.pi * freq_hz * 2 * t)
+    tone = amplitude * np.sin(2 * np.pi * freq_hz * t)
+    if harmonics:
+        tone += 0.2 * np.sin(2 * np.pi * freq_hz * 2 * t)
     # 10 ms fade-in / fade-out to avoid click
-    fade_len = int(play_sr * 0.01)
+    fade_len = int(_PLAY_SR * 0.01)
     if fade_len > 0 and fade_len * 2 < n_samples:
-        fade_in = np.linspace(0, 1, fade_len, dtype=np.float32)
-        fade_out = np.linspace(1, 0, fade_len, dtype=np.float32)
-        tone[:fade_len] *= fade_in
-        tone[-fade_len:] *= fade_out
-    # Pad with 50ms silence before — prevents Windows audio device
-    # from swallowing the beginning of a short clip
-    pad = np.zeros(int(play_sr * 0.05), dtype=np.float32)
-    tone = np.concatenate([pad, tone])
-    sd.play(tone, samplerate=play_sr)
+        tone[:fade_len] *= np.linspace(0, 1, fade_len, dtype=np.float32)
+        tone[-fade_len:] *= np.linspace(1, 0, fade_len, dtype=np.float32)
+    return tone
+
+
+def _pad_and_play(signal: np.ndarray) -> None:
+    """Prepend 50 ms silence (Windows audio warmup) and play blocking."""
+    pad = np.zeros(int(_PLAY_SR * 0.05), dtype=np.float32)
+    sd.play(np.concatenate([pad, signal]), samplerate=_PLAY_SR)
     sd.wait()
+
+
+def play_tone(freq_hz: int = 880, duration_ms: int = 300) -> None:
+    """Play a confirmation beep with octave harmonic."""
+    _pad_and_play(_generate_tone(freq_hz, duration_ms, amplitude=0.45, harmonics=True))
 
 
 def stream_record_with_vad(
@@ -117,3 +123,70 @@ def stream_record_with_vad(
     if not chunks:
         return np.array([], dtype=np.float32)
     return np.concatenate(chunks)
+
+
+# ---------------------------------------------------------------------------
+# Step 3 additions
+# ---------------------------------------------------------------------------
+
+def numpy_to_wav_bytes(audio: np.ndarray, sample_rate: int = 16000) -> bytes:
+    """Convert a float32 [-1, 1] numpy array to in-memory WAV bytes.
+
+    Returns raw bytes suitable for uploading to Whisper STT.
+    """
+    import io
+    import wave
+
+    # Clip and convert to 16-bit PCM
+    clipped = np.clip(audio, -1.0, 1.0)
+    pcm = (clipped * 32767).astype(np.int16)
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)  # 16-bit
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm.tobytes())
+    return buf.getvalue()
+
+
+def play_wav(file_path: str) -> None:
+    """Play a WAV file through the default output device.
+
+    Silently returns if the file does not exist.
+    """
+    import os
+    import wave
+
+    if not os.path.isfile(file_path):
+        print(f"Warning: WAV file not found: {file_path}")
+        return
+
+    with wave.open(file_path, "rb") as wf:
+        sr = wf.getframerate()
+        frames = wf.readframes(wf.getnframes())
+        dtype = np.int16 if wf.getsampwidth() == 2 else np.float32
+        audio = np.frombuffer(frames, dtype=dtype).astype(np.float32)
+        if dtype == np.int16:
+            audio = audio / 32768.0
+
+    sd.play(audio, samplerate=sr)
+    sd.wait()
+
+
+# Pre-defined tone patterns: list of (freq_hz, duration_ms)
+REMIND_PATTERN = [(440, 200), (554, 300)]       # gentle ascending — "still there?"
+BYE_PATTERN = [(554, 200), (440, 200), (330, 400)]  # descending — "goodnight"
+
+
+def play_tone_pattern(
+    freqs: list[tuple[int, int]],
+    gap_ms: int = 50,
+) -> None:
+    """Play a sequence of (freq_hz, duration_ms) tones with gaps and fades."""
+    parts: list[np.ndarray] = []
+    for freq_hz, duration_ms in freqs:
+        parts.append(_generate_tone(freq_hz, duration_ms))
+        if gap_ms > 0:
+            parts.append(np.zeros(int(_PLAY_SR * gap_ms / 1000), dtype=np.float32))
+    _pad_and_play(np.concatenate(parts))
