@@ -21,6 +21,7 @@ _DEFAULTS = {
     "idle_remind_wait_s": 15,
     "stt_provider": "local",
     "stt_model": "small",
+    "tts_speed": 1.0,
 }
 
 # Environment variable name → config key
@@ -39,6 +40,7 @@ _ENV_MAP = {
     "IDLE_REMIND_WAIT_S": "idle_remind_wait_s",
     "STT_PROVIDER": "stt_provider",
     "STT_MODEL": "stt_model",
+    "TTS_SPEED": "tts_speed",
 }
 
 

@@ -39,6 +39,10 @@ class BaseTranscriber:
             return
         self._load_model()
 
+    def warm(self) -> None:
+        """Pre-load the model so the first transcription is fast."""
+        self._ensure_model()
+
     async def transcribe(self, audio: np.ndarray, sr: int = 16000) -> str:
         """Transcribe float32 audio array to text.
 

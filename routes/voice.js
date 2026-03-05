@@ -77,18 +77,21 @@ router.post("/voice/tts", async (req, res) => {
   const timer = setTimeout(() => abort.abort(), TTS_TIMEOUT_MS);
 
   try {
+    const format = req.body.format === "wav" ? "wav" : "mp3";
+    const contentType = format === "wav" ? "audio/wav" : "audio/mpeg";
+
     const response = await clients.openaiClient.audio.speech.create(
       {
         model: "tts-1",
         input: text,
         voice,
         speed,
-        response_format: "mp3",
+        response_format: format,
       },
       { signal: abort.signal }
     );
 
-    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Type", contentType);
 
     // response.body 是 ReadableStream，pipe 到 res
     const nodeStream = response.body;

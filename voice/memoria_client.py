@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncGenerator
+
 import httpx
 
 
@@ -90,6 +93,53 @@ class MemoriaClient:
         )
         self._check(resp)
         return resp.json().get("text", "")
+
+    async def chat_stream(self, messages: list[dict]) -> AsyncGenerator[dict, None]:
+        """POST /api/chat — yield SSE event dicts as they arrive.
+
+        Each yielded dict may contain one of:
+          {"content": "..."}   — LLM text fragment (feed to SentenceBuffer)
+          {"reasoning": "..."}  — reasoning chain (ignored by pipeline)
+          {"status": "..."}    — status update
+          {"meta": {...}}      — token usage / model info
+          {"error": "..."}     — upstream error
+
+        The generator ends when ``data: [DONE]`` is received or the stream
+        closes.
+        """
+        async with self._client.stream(
+            "POST",
+            "/api/chat",
+            json={"messages": messages},
+            timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0),
+        ) as resp:
+            if not resp.is_success:
+                await resp.aread()
+                self._check(resp)
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:]
+                if payload == "[DONE]":
+                    break
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
+    async def text_to_speech(
+        self,
+        text: str,
+        voice: str = "alloy",
+        speed: float = 1.0,
+    ) -> bytes:
+        """POST /api/voice/tts → WAV audio bytes."""
+        resp = await self._client.post(
+            "/api/voice/tts",
+            json={"text": text, "voice": voice, "speed": speed, "format": "wav"},
+        )
+        self._check(resp)
+        return resp.content
 
     async def close(self) -> None:
         """Shut down the underlying connection pool."""

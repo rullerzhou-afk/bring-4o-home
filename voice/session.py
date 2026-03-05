@@ -67,18 +67,20 @@ class Session:
             print(f"[Session] 新对话: {cid}")
         return self._conv_id
 
-    async def add_user_message(self, text: str) -> None:
-        """Append a user message to local cache and persist to server."""
-        msg = {"role": "user", "content": text}
+    async def _add_message(self, role: str, text: str) -> None:
+        """Append a message to local cache and persist to server."""
+        msg = {"role": role, "content": text}
         self._messages.append(msg)
         self.touch()
         if self._conv_id:
             await self._client.append_messages(self._conv_id, [msg])
         else:
-            print("Warning: 无对话 ID，消息未持久化")
+            print(f"Warning: 无对话 ID，{role} 消息未持久化")
+
+    async def add_user_message(self, text: str) -> None:
+        """Append a user message to local cache and persist to server."""
+        await self._add_message("user", text)
 
     async def add_assistant_message(self, text: str) -> None:
-        """Append an assistant message to local cache (for Step 4)."""
-        msg = {"role": "assistant", "content": text}
-        self._messages.append(msg)
-        self.touch()
+        """Append an assistant message to local cache and persist to server."""
+        await self._add_message("assistant", text)

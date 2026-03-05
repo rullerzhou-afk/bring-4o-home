@@ -21,8 +21,9 @@ session_timeout: 30      # 分钟，超时新建对话
 idle_remind_m: 2         # 分钟，空闲多久提醒（0=禁用）
 idle_remind_wait_s: 15   # 秒，提醒后等待多久进入休眠
 
-# --- TTS (Step 4+) ---
-# tts_voice: "alloy"
+# --- TTS (Step 4) ---
+tts_voice: "alloy"          # alloy/ash/ballad/coral/echo/fable/nova/onyx/sage/shimmer/verse
+tts_speed: 1.0              # 0.25~4.0
 
 # --- Wake (Step 5+) ---
 # wake_word: "hey memoria"

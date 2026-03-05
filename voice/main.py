@@ -55,7 +55,7 @@ async def wait_for_space(
 
 
 async def talk_loop() -> None:
-    """Async space-to-talk loop: record → STT → persist to Memoria."""
+    """Async space-to-talk loop: record → STT → AI chat → TTS → playback."""
     import keyboard
     from config import cfg
     from state_machine import StateMachine, State
@@ -65,6 +65,7 @@ async def talk_loop() -> None:
     from memoria_client import MemoriaClient
     from session import Session
     from stt import make_transcriber
+    from pipeline import run_pipeline, ChatError
 
     sr = cfg["sample_rate"]
     silence_ms = int(cfg["silence_duration"] * 1000)
@@ -73,6 +74,8 @@ async def talk_loop() -> None:
     language = cfg["language"]
     idle_remind_m = cfg["idle_remind_m"]
     idle_remind_wait_s = cfg["idle_remind_wait_s"]
+    tts_voice = cfg["tts_voice"]
+    tts_speed = cfg.get("tts_speed", 1.0)
 
     sm = StateMachine()
     vad = SileroVAD(threshold=threshold)
@@ -85,10 +88,19 @@ async def talk_loop() -> None:
     )
     session = Session(client, timeout_m=cfg["session_timeout"])
 
+    # Cancel event for pipeline (Step 6 barge-in will set this)
+    cancel_event = asyncio.Event()
+
     # Bridge keyboard events → asyncio
     loop = asyncio.get_running_loop()
     space_event = asyncio.Event()
     keyboard.on_press_key("space", lambda _: loop.call_soon_threadsafe(space_event.set))
+
+    # Pre-warm audio player + STT model in parallel
+    warmup = [asyncio.to_thread(audio_io.get_tts_player, 24000)]
+    if local_stt:
+        warmup.append(asyncio.to_thread(local_stt.warm))
+    await asyncio.gather(*warmup)
 
     print("=== Memoria Voice — Talk Mode ===")
     print("Press Space to talk, Ctrl+C to quit.\n")
@@ -170,14 +182,45 @@ async def talk_loop() -> None:
 
                 print(f"You: {text}")
 
-                # Persist to server (non-fatal)
+                # Persist user message (non-fatal)
                 try:
                     await session.add_user_message(text)
                 except Exception as e:
                     print(f"Warning: 消息保存失败 ({e})")
 
+                # --- AI response pipeline ---
+                sm.transition(State.SPEAKING)
+                print(f"[{sm.state.name}] AI 回复中...")
+                cancel_event.clear()
+
+                try:
+                    result = await run_pipeline(
+                        client=client,
+                        messages=session.messages,
+                        cancel=cancel_event,
+                        tts_voice=tts_voice,
+                        tts_speed=tts_speed,
+                    )
+                    if result.full_text:
+                        print(f"AI: {result.full_text}")
+                        try:
+                            await session.add_assistant_message(result.full_text)
+                        except Exception as e:
+                            print(f"Warning: 回复保存失败 ({e})")
+                        if result.meta:
+                            m = result.meta
+                            print(
+                                f"  [{m.get('model', '')}] "
+                                f"{m.get('total_tokens', 0)} tokens"
+                            )
+                    else:
+                        print("(AI 无回复)")
+                except ChatError as e:
+                    print(f"Error: AI 回复错误 ({e})")
+                except Exception as e:
+                    print(f"Error: AI 回复失败 ({e})")
+
                 sm.transition(State.IDLE)
-                # ← Step 4: /api/chat → TTS → SPEAKING
 
             # ============================================================
             # SLEEPING — wait for space to wake up
@@ -193,6 +236,7 @@ async def talk_loop() -> None:
         print("\nBye!")
     finally:
         keyboard.unhook_all()
+        audio_io.close_tts_player()
         await client.close()
         sm.reset()
 

@@ -2,6 +2,13 @@
 
 ## 2026-03-05
 
+### New Features — Voice Plan Step 4: SSE streaming → TTS → gapless audio playback
+- **AI 语音回复** — 录音识别后 AI 自动回复并朗读，支持 SSE 流式对话 + 实时 TTS 合成 + 无缝音频播放
+- **三级流水线** — SSE 流→断句→TTS 合成→播放四步并行，AI 说第一句话时后续句子已在合成，延迟极低
+- **无缝播放引擎** — 自研 TTSPlayer 回调驱动音频播放器，解决 Windows WASAPI 首音节吞字、多流冲突、静默后变调等问题
+- **统一音频通道** — 提示音和 TTS 语音共用单一音频流，消除 Windows 多流输出冲突
+- **断句缓冲器** — SentenceBuffer 按中英文标点切分 AI 回复，避免半句话送 TTS
+
 ### New Features — Local STT + AMD GPU acceleration
 - **本地语音识别** — 新增 faster-whisper 本地 STT 后端（`stt_provider: "local"`），无需依赖服务端 API，录音直接在本地转文字
 - **AMD GPU 加速** — 新增 openai-whisper + PyTorch 后端（`stt_provider: "local-torch"`），通过 ROCm 7.2 支持 AMD 显卡 GPU 加速
