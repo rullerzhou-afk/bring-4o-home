@@ -3,5 +3,7 @@
   "temperature": 0.85,
   "presence_penalty": 0,
   "frequency_penalty": 0.15,
-  "context_window": 50
+  "context_window": 50,
+  "auto_compress": false,
+  "compress_keep_recent": 10
 }

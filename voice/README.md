@@ -86,7 +86,7 @@ python main.py --talk
 | `WAKE_WORD` | `wake_word` | `小莫` | 唤醒词（中英文均可，逗号分隔多个） |
 | `WAKE_THRESHOLD` | `wake_threshold` | `0.25` | 唤醒词检测阈值（越大越难触发） |
 | `WAKE_SCORE` | `wake_score` | `1.0` | 关键词增强分数（越大越容易通过） |
-| `FILLER_ENABLED` | `filler_enabled` | `true` | 录音结束后播放确认音 |
+| `FILLER_ENABLED` | `filler_enabled` | `true` | 播放音效（开机/关机/接收音等） |
 | `LOG_TRANSCRIPTS` | `log_transcripts` | `false` | 终端是否打印用户语音文本 |
 
 > **Security**: Use environment variables for `ADMIN_TOKEN`. Never put real tokens in `config.yaml` (it's tracked by git).
@@ -148,6 +148,8 @@ voice/
 ├── session.py           # 会话生命周期管理
 ├── tts.py               # TTS provider 抽象（API/Edge/Local）
 ├── pipeline.py          # Chat → TTS 流水线
+├── filler.py            # 音效管理（加载 sound/ 目录的音频文件）
+├── sound/               # 音效文件（turn_on/shut_down/take_over/error）
 ├── models/              # VAD + KWS 模型（自动下载，不入 git）
 ├── memoria-voice.service # systemd 模板
 ├── requirements.txt     # Python 依赖

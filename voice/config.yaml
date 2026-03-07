@@ -16,7 +16,7 @@ max_recording: 60        # 秒，录音上限
 # --- STT / Session (Step 3) ---
 language: "auto"
 stt_provider: "local"    # "local"=faster-whisper, "local-torch"=openai-whisper+PyTorch(AMD GPU), "api"=服务端
-stt_model: "small"       # Whisper 模型: tiny/base/small/medium/large-v3
+stt_model: "large-v3"    # Whisper 模型: tiny/base/small/medium/large-v3
 session_timeout: 30      # 分钟，超时新建对话
 idle_remind_m: 2         # 分钟，空闲多久提醒（0=禁用）
 idle_remind_wait_s: 15   # 秒，提醒后等待多久进入休眠
@@ -27,14 +27,14 @@ tts_voice: "alloy"          # OpenAI: alloy/ash/ballad/coral/echo/fable/nova/ony
 tts_speed: 1.0              # 0.25~4.0
 
 # --- Trigger (Step 5) ---
-trigger_mode: "keypress"     # "keypress"=Space only, "wakeword"=voice only, "both"=Space+voice
+trigger_mode: "both"     # "keypress"=Space only, "wakeword"=voice only, "both"=Space+voice
 talk_key: "space"            # 说话键（keyboard 库支持的键名）
 wake_word: "小莫小莫,hey memoria"          # 唤醒词（多个用逗号分隔）
 wake_threshold: 0.25          # 检测阈值，越大越难触发（0.1~0.9）
 wake_score: 1.5              # 关键词增强分数，越大越容易通过 beam search
 
-# --- Behavior ---
-filler_enabled: true         # 录音结束后播放确认音
+# --- Sound effects ---
+filler_enabled: true         # 播放音效（开机/关机/接收音等），false=静音
 
 # --- Privacy ---
-log_transcripts: false       # 是否在终端打印用户语音文本（false=只显示"已识别"）
+log_transcripts: true        # 是否在终端打印用户语音文本（false=只显示"已识别"）

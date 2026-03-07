@@ -20,7 +20,7 @@ class ListenCfg:
     client: Any
     language: str
     wake_listener: Any
-    filler_enabled: bool = True
+    sounds: Any = None            # SoundBank instance (None = disabled)
     log_transcripts: bool = False
 
 
@@ -68,36 +68,35 @@ def test_audio() -> None:
 async def wait_for_trigger(
     events: list[asyncio.Event],
     timeout: float | None,
-) -> bool:
-    """Wait for ANY of the given events.  Returns True if fired, False on timeout.
+) -> asyncio.Event | None:
+    """Wait for ANY of the given events.  Returns the Event that fired, or None on timeout.
 
     Caller must clear() events beforehand if stale triggers should be
     discarded (e.g. after PROCESSING).  We do NOT clear here so that a
     trigger during tone playback is not lost.
     """
     if not events:
-        # No trigger configured — block forever (shouldn't happen)
         await asyncio.sleep(3600)
-        return False
+        return None
 
-    async def _wait_one(evt: asyncio.Event) -> None:
+    async def _wait_one(evt: asyncio.Event) -> asyncio.Event:
         await evt.wait()
+        return evt
 
     tasks = [asyncio.create_task(_wait_one(e)) for e in events]
     try:
         if timeout is None:
-            await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         else:
-            _done, _pending = await asyncio.wait(
+            done, _ = await asyncio.wait(
                 tasks, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
             )
-            if not _done:
-                return False
-        return True
+            if not done:
+                return None
+        return next(iter(done)).result()
     finally:
         for t in tasks:
             t.cancel()
-        # Suppress CancelledError from tasks we just cancelled
         for t in tasks:
             try:
                 await t
@@ -131,18 +130,37 @@ async def _listen_and_transcribe(lc: ListenCfg) -> str | None:
             print("(录音太短，已忽略)\n")
             return None
 
-        # Ding after recording — confirms "I heard you, processing now"
-        if lc.filler_enabled:
-            await asyncio.to_thread(audio_io.play_tone)
+        import time as _time
         print(f"[PROCESSING] 识别中... ({duration:.1f}s)")
-        try:
+
+        # Build STT coroutine
+        async def _stt():
+            t0 = _time.perf_counter()
             if lc.local_stt:
-                text = await lc.local_stt.transcribe(audio, sr=lc.sr)
+                result = await lc.local_stt.transcribe(audio, sr=lc.sr)
             else:
                 wav_bytes = audio_io.numpy_to_wav_bytes(audio, sample_rate=lc.sr)
-                text = await lc.client.transcribe(wav_bytes, language=lc.language)
+                result = await lc.client.transcribe(wav_bytes, language=lc.language)
+            stt_ms = (_time.perf_counter() - t0) * 1000
+            print(f"  [STT] {stt_ms:.0f}ms (录音 {duration:.1f}s, 比率 {stt_ms/duration/1000:.2f}x)")
+            return result
+
+        # Take-over sound parallel with STT (delayed 0.8s)
+        try:
+            if lc.sounds and lc.sounds.has("take_over"):
+                stt_task = asyncio.create_task(_stt())
+                sound_task = asyncio.create_task(
+                    asyncio.to_thread(lc.sounds.play, "take_over",
+                                      volume=0.8, delay=0.8)
+                )
+                await asyncio.gather(stt_task, sound_task)
+                text = stt_task.result()
+            else:
+                text = await _stt()
         except Exception as e:
             print(f"Error: STT 失败 ({e})\n")
+            if lc.sounds and lc.sounds.has("error"):
+                await asyncio.to_thread(lc.sounds.play, "error")
             return None
 
         if not text or not text.strip():
@@ -248,10 +266,14 @@ async def _do_speak(
                 result = pipeline_task.result()
             except ChatError as e:
                 print(f"Error: AI 回复错误 ({e})")
+                if lc.sounds and lc.sounds.has("error"):
+                    await asyncio.to_thread(lc.sounds.play, "error")
                 sm.transition(State.IDLE)
                 return
             except Exception as e:
                 print(f"Error: AI 回复失败 ({e})")
+                if lc.sounds and lc.sounds.has("error"):
+                    await asyncio.to_thread(lc.sounds.play, "error")
                 sm.transition(State.IDLE)
                 return
 
@@ -353,21 +375,30 @@ async def talk_loop() -> None:
         )
         wake_listener.start()
 
-    # Bundle recording/STT config (avoids parameter sprawl)
-    lc = ListenCfg(
-        vad=vad, sr=sr, silence_ms=silence_ms, max_sec=max_sec,
-        local_stt=local_stt, client=client, language=language,
-        wake_listener=wake_listener,
-        filler_enabled=cfg.get("filler_enabled", True),
-        log_transcripts=cfg.get("log_transcripts", False),
-    )
-
     # Pre-warm audio player + STT + TTS models in parallel
     warmup = [asyncio.to_thread(audio_io.get_tts_player, 24000)]
     if local_stt:
         warmup.append(asyncio.to_thread(local_stt.warm))
     warmup.append(asyncio.to_thread(tts_provider.warm))
     await asyncio.gather(*warmup)
+
+    # Load sound effects
+    sounds = None
+    if cfg.get("filler_enabled", True):
+        from filler import SoundBank, ensure_wake_response
+        # Auto-generate wake_response if missing (needs TTS warmed up)
+        await ensure_wake_response(tts_provider, tts_voice, tts_speed)
+        sounds = SoundBank()
+        await asyncio.to_thread(sounds.load)
+
+    # Bundle recording/STT config (avoids parameter sprawl)
+    lc = ListenCfg(
+        vad=vad, sr=sr, silence_ms=silence_ms, max_sec=max_sec,
+        local_stt=local_stt, client=client, language=language,
+        wake_listener=wake_listener,
+        sounds=sounds,
+        log_transcripts=cfg.get("log_transcripts", False),
+    )
 
     # Build trigger list once (events don't change during the loop)
     triggers = []
@@ -386,11 +417,20 @@ async def talk_loop() -> None:
     print("=== Memoria Voice — Talk Mode ===")
     print(f"Trigger: {hint} | Ctrl+C to quit.\n")
 
-    # Try creating initial conversation (non-fatal if server is down)
+    # Server connection check — can't do anything without it
     try:
         await session.ensure_conversation()
     except Exception as e:
-        print(f"Warning: 无法连接服务器 ({e})，稍后重试\n")
+        print(f"Error: 无法连接服务器 ({e})")
+        if sounds and sounds.has("error"):
+            await asyncio.to_thread(sounds.play, "error")
+        print("请确认 Node 服务已启动，然后重试。")
+        await client.close()
+        raise SystemExit(1)
+
+    # Startup sound
+    if sounds and sounds.has("turn_on"):
+        await asyncio.to_thread(sounds.play, "turn_on")
 
     try:
         while True:
@@ -404,20 +444,33 @@ async def talk_loop() -> None:
                 wake_event.clear()
 
                 print(f"[{sm.state.name}] Waiting for trigger...")
-                triggered = await wait_for_trigger(triggers, timeout=idle_timeout)
+                fired = await wait_for_trigger(triggers, timeout=idle_timeout)
 
-                if not triggered:
+                if fired is None:
                     # Idle timeout → remind
                     print(f"[{sm.state.name}] 还在吗？")
                     await asyncio.to_thread(audio_io.play_tone_pattern, REMIND_PATTERN)
                     # Don't clear events here — user may have triggered during the tone
-                    triggered = await wait_for_trigger(triggers, timeout=idle_remind_wait_s)
-                    if not triggered:
+                    fired = await wait_for_trigger(triggers, timeout=idle_remind_wait_s)
+                    if fired is None:
                         # No response → sleep
                         print(f"[{sm.state.name}] 晚安～")
-                        await asyncio.to_thread(audio_io.play_tone_pattern, BYE_PATTERN)
+                        if sounds and sounds.has("shut_down"):
+                            await asyncio.to_thread(sounds.play, "shut_down")
+                        else:
+                            await asyncio.to_thread(audio_io.play_tone_pattern, BYE_PATTERN)
                         sm.transition(State.SLEEPING)
                         continue
+
+                # Wake word triggered → play wake response
+                if (fired is wake_event and sounds
+                        and sounds.has("wake_response")):
+                    if wake_listener:
+                        wake_listener.pause()
+                    await asyncio.sleep(0.5)
+                    await asyncio.to_thread(sounds.play, "wake_response")
+                    # Listener stays paused — _listen_and_transcribe
+                    # handles resume in its try/finally
 
                 # Triggered → ensure conversation exists
                 try:
@@ -452,8 +505,20 @@ async def talk_loop() -> None:
                 space_event.clear()
                 wake_event.clear()
                 print(f"[{sm.state.name}] Waiting for trigger to wake up...")
-                await wait_for_trigger(triggers, timeout=None)
-                print("(醒来了)\n")
+                sleep_fired = await wait_for_trigger(triggers, timeout=None)
+                print("(醒来了)")
+                # Wake word → play wake response; Space → play turn_on
+                if (sleep_fired is wake_event and sounds
+                        and sounds.has("wake_response")):
+                    if wake_listener:
+                        wake_listener.pause()
+                    await asyncio.sleep(0.5)
+                    await asyncio.to_thread(sounds.play, "wake_response")
+                    if wake_listener:
+                        wake_listener.resume()
+                elif sounds and sounds.has("turn_on"):
+                    await asyncio.to_thread(sounds.play, "turn_on")
+                print()
                 sm.transition(State.IDLE)
 
     except KeyboardInterrupt:
@@ -463,6 +528,9 @@ async def talk_loop() -> None:
             wake_listener.stop()
         if keyboard:
             keyboard.unhook_all()
+        # Shutdown sound (before closing player)
+        if sounds and sounds.has("shut_down"):
+            sounds.play("shut_down")
         audio_io.close_tts_player()
         await client.close()
         sm.reset()

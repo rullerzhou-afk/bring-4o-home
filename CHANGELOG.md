@@ -2,6 +2,13 @@
 
 ## 2026-03-07
 
+### New Features — Voice Plan Step 7.5: Sound effects & wake response
+- **音效系统** — `voice/sound/` 目录放音频文件，启动自动加载（支持 MP3/WAV/OGG/FLAC，自动重采样到 24kHz）
+- **四种音效** — 开机音（turn_on）、关机音（shut_down）、接收音（take_over，与 STT 并行播放）、报错音（error）
+- **唤醒回应** — 说唤醒词后自动播放 TTS 生成的 "I'm here"（首次启动自动生成并缓存到 sound/wake_response.wav）
+- **服务器检查** — 启动时如果连不上 Node 服务，播报错音并退出（exit code 1），systemd 会自动重启
+- **STT 计时** — 终端显示 STT 耗时和录音时长比率，方便性能调优
+
 ### New Features — Voice Plan Step 7: Configuration & deployment
 - **自定义说话键** — `talk_key` 配置项，不再硬编码 Space，支持 keyboard 库所有键名
 - **确认音开关** — `filler_enabled` 配置项控制录音后的"叮"提示音
