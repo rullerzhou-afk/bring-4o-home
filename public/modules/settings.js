@@ -31,6 +31,7 @@ const memoryPanel = document.getElementById("memory-panel");
 const memoryStructured = document.getElementById("memory-structured");
 const editConfig = document.getElementById("edit-config");
 const editImport = document.getElementById("edit-import");
+const editVoice = document.getElementById("edit-voice");
 const savePromptsBtn = document.getElementById("save-prompts");
 const resetDefaultsBtn = document.getElementById("reset-defaults");
 const saveStatus = document.getElementById("save-status");
@@ -446,9 +447,99 @@ export async function loadConfigPanel() {
     configAutoCompress.checked = config.auto_compress ?? false;
     configKeepRecent.value = config.compress_keep_recent ?? 10;
     keepRecentVal.textContent = config.compress_keep_recent ?? 10;
+
+    // 语音设置
+    _fillVoicePanel(config.voice || {});
   } catch (err) {
     console.error("加载配置失败:", err);
   }
+}
+
+// ===== 语音设置面板 =====
+const voiceSttProvider = document.getElementById("voice-stt-provider");
+const voiceTtsProvider = document.getElementById("voice-tts-provider");
+const voiceTtsVoice = document.getElementById("voice-tts-voice");
+const voiceTtsSpeed = document.getElementById("voice-tts-speed");
+const voiceSpeedVal = document.getElementById("voice-speed-val");
+const voiceCloneRow = document.getElementById("voice-clone-row");
+const voiceCloneId = document.getElementById("voice-clone-id");
+
+const EDGE_VOICES = [
+  { value: "zh-CN-YunxiNeural", label: "云溪 (男)" },
+  { value: "zh-CN-XiaoxiaoNeural", label: "晓晓 (女)" },
+  { value: "zh-CN-YunyangNeural", label: "云扬 (男·新闻)" },
+  { value: "zh-CN-XiaoyiNeural", label: "晓伊 (女)" },
+  { value: "zh-CN-YunjianNeural", label: "云健 (男)" },
+  { value: "en-US-AndrewNeural", label: "Andrew (M)" },
+  { value: "en-US-AriaNeural", label: "Aria (F)" },
+  { value: "en-US-GuyNeural", label: "Guy (M)" },
+  { value: "en-US-JennyNeural", label: "Jenny (F)" },
+  { value: "ja-JP-NanamiNeural", label: "七海 (女)" },
+];
+
+const API_VOICES = [
+  { value: "alloy", label: "Alloy" },
+  { value: "ash", label: "Ash" },
+  { value: "coral", label: "Coral" },
+  { value: "echo", label: "Echo" },
+  { value: "fable", label: "Fable" },
+  { value: "nova", label: "Nova" },
+  { value: "onyx", label: "Onyx" },
+  { value: "sage", label: "Sage" },
+  { value: "shimmer", label: "Shimmer" },
+];
+
+function _updateVoiceOptions(provider, currentVoice) {
+  const voices = provider === "edge" ? EDGE_VOICES : API_VOICES;
+  voiceTtsVoice.innerHTML = "";
+  for (const v of voices) {
+    const opt = document.createElement("option");
+    opt.value = v.value;
+    opt.textContent = v.label;
+    if (v.value === currentVoice) opt.selected = true;
+    voiceTtsVoice.appendChild(opt);
+  }
+  // 火山引擎 clone ID 行
+  voiceCloneRow.classList.toggle("hidden", provider !== "volcengine");
+}
+
+function _fillVoicePanel(voice) {
+  if (voiceSttProvider) voiceSttProvider.value = voice.stt_provider || "browser";
+  if (voiceTtsProvider) voiceTtsProvider.value = voice.tts_provider || "edge";
+  if (voiceTtsSpeed) {
+    voiceTtsSpeed.value = voice.tts_speed || 1.0;
+    voiceSpeedVal.textContent = voiceTtsSpeed.value;
+  }
+  if (voiceCloneId) voiceCloneId.value = voice.volcengine_clone_id || "";
+  _updateVoiceOptions(voice.tts_provider || "edge", voice.tts_voice || "");
+}
+
+function _collectVoiceConfig() {
+  return {
+    stt_provider: voiceSttProvider?.value || "browser",
+    tts_provider: voiceTtsProvider?.value || "edge",
+    tts_voice: voiceTtsVoice?.value || "",
+    tts_speed: parseFloat(voiceTtsSpeed?.value || "1.0"),
+    volcengine_clone_id: voiceCloneId?.value || "",
+  };
+}
+
+function loadVoicePanel() {
+  const voice = state.currentConfig?.voice || {};
+  _fillVoicePanel(voice);
+}
+
+if (voiceTtsProvider) {
+  voiceTtsProvider.addEventListener("change", () => {
+    const currentVoice = voiceTtsVoice?.value || "";
+    _updateVoiceOptions(voiceTtsProvider.value, currentVoice);
+  });
+}
+
+if (voiceTtsSpeed) {
+  voiceTtsSpeed.addEventListener("input", () => {
+    voiceSpeedVal.textContent = voiceTtsSpeed.value;
+  });
 }
 
 // 记忆引用开关（localStorage，实时生效）
@@ -512,8 +603,10 @@ tabs.forEach((tab) => {
     }
     memoryPanel.classList.toggle("hidden", target !== "memory");
     editConfig.classList.toggle("hidden", target !== "config");
+    editVoice.classList.toggle("hidden", target !== "voice");
     editImport.classList.toggle("hidden", target !== "import");
     if (target === "import") initImportTab();
+    if (target === "voice") loadVoicePanel();
   });
 });
 
@@ -551,6 +644,7 @@ savePromptsBtn.addEventListener("click", async () => {
         autoPromotion: configAutoPromotion.checked,
         decayIdleDays: parseInt(configDecayDays.value, 10),
       },
+      voice: _collectVoiceConfig(),
     };
     const configRes = await apiFetch("/api/config", {
       method: "PUT",

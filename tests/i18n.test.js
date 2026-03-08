@@ -164,7 +164,7 @@ describe('key naming conventions', () => {
   const validPrefixes = [
     'btn_', 'title_', 'label_', 'tab_', 'section_', 'ph_',
     'hint_', 'status_', 'toast_', 'err_', 'confirm_', 'mem_',
-    'time_', 'greet_', 'import_', 'diff_', 'misc_',
+    'time_', 'greet_', 'import_', 'diff_', 'misc_', 'voice_',
   ];
 
   it('all keys start with a known prefix', () => {

@@ -10,6 +10,8 @@ const app = express();
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
+app.get("/voice", (req, res) => res.sendFile(path.join(__dirname, "public", "voice.html")));
+
 app.use("/api", authMiddleware);
 app.use("/images", authMiddleware, express.static(IMAGES_DIR));
 

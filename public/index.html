@@ -131,6 +131,14 @@
             </div>
             <input type="file" id="image-input" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json" multiple hidden />
             <textarea id="user-input" placeholder="给 4o 发消息..." data-i18n-placeholder="ph_input_default" rows="1"></textarea>
+            <a href="/voice" id="voice-entry-btn" title="语音对话" data-i18n-title="voice_title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </a>
             <button id="send-btn" title="发送" data-i18n-title="title_send">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <path d="M7 11L12 6L17 11M12 18V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -180,6 +188,15 @@
               <line x1="17" y1="16" x2="23" y2="16" />
             </svg>
             <span data-i18n="tab_config">模型参数</span>
+          </button>
+          <button class="tab" data-tab="voice">
+            <svg viewBox="0 0 24 24" fill="none" class="tab-icon">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+            <span data-i18n="tab_voice">语音</span>
           </button>
           <button class="tab" data-tab="import">
             <svg viewBox="0 0 24 24" fill="none" class="tab-icon">
@@ -406,6 +423,44 @@
               </div>
               <input type="range" id="config-keep-recent" min="2" max="100" step="2" value="10" />
               <p class="config-hint" data-i18n="hint_keep_recent">压缩时保留最近多少条原始消息。建议 6-20，越多上下文越精确但 token 越多。</p>
+            </div>
+          </div>
+
+          <!-- 语音设置 Tab -->
+          <div id="edit-voice" class="config-panel hidden">
+            <div class="config-section-title" data-i18n="voice_section_stt">语音识别</div>
+            <div class="config-row dropdown-row">
+              <label data-i18n="voice_label_stt_provider">识别方式</label>
+              <select id="voice-stt-provider">
+                <option value="browser" data-i18n="voice_stt_browser">浏览器内置</option>
+                <option value="api" data-i18n="voice_stt_api">OpenAI Whisper API</option>
+                <option value="local" disabled data-i18n="voice_stt_local">本地 Whisper (需 Python)</option>
+                <option value="volcengine" disabled data-i18n="voice_stt_volcengine">火山引擎 (预留)</option>
+              </select>
+            </div>
+            <div class="config-section-title" data-i18n="voice_section_tts">语音合成</div>
+            <div class="config-row dropdown-row">
+              <label data-i18n="voice_label_tts_provider">合成方式</label>
+              <select id="voice-tts-provider">
+                <option value="edge" data-i18n="voice_tts_edge">Edge TTS (免费)</option>
+                <option value="api" data-i18n="voice_tts_api">OpenAI TTS API</option>
+                <option value="volcengine" disabled data-i18n="voice_tts_volcengine">火山引擎 (预留)</option>
+              </select>
+            </div>
+            <div class="config-row dropdown-row">
+              <label data-i18n="voice_label_tts_voice">语音</label>
+              <select id="voice-tts-voice"></select>
+            </div>
+            <div class="config-row slider-row">
+              <div class="slider-label-group">
+                <label data-i18n="voice_label_tts_speed">语速</label>
+                <span class="config-val" id="voice-speed-val">1.0</span>
+              </div>
+              <input type="range" id="voice-tts-speed" min="0.5" max="2.0" step="0.1" value="1.0" />
+            </div>
+            <div id="voice-clone-row" class="config-row text-input-row hidden">
+              <label data-i18n="voice_label_clone_id">声音克隆 ID</label>
+              <input type="text" id="voice-clone-id" maxlength="64" placeholder="火山引擎 Clone Voice ID" />
             </div>
           </div>
 

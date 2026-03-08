@@ -2,6 +2,15 @@
 
 ## 2026-03-08
 
+### New Features — Voice Web Page (`/voice`)
+- **独立语音对话页面** — 浏览器直接语音对话，中央动态球体可视化音量脉动，实时显示用户语音和 AI 回复文字
+- **双模 STT** — Web Speech API（浏览器原生）+ MediaRecorder 录音上传 Whisper（API 模式），自动降级
+- **Edge TTS 后端** — 默认使用免费 Edge TTS，失败自动降级到 OpenAI TTS
+- **语音设置面板** — 聊天页设置新增语音 Tab，可选 STT/TTS 提供商、音色、语速
+- **SSE 流式分句播放** — AI 回复边生成边朗读，句子缓冲器智能分句（中英标点 + 强制截断）
+- **打断机制** — AI 说话时点击麦克风立即打断，保存部分回复，重新开始录音
+- **提取共享 SSE 解析器** — `sse-reader.js` 从 chat.js 抽取，voice 和 chat 复用
+
 ### New Features — Voice Plan Step 7.6: Continuous conversation & farewell detection
 - **连续对话模式** — AI 说完后自动等待用户继续说话（默认 6 秒），不需要重新喊唤醒词。超时无响应才退回唤醒等待状态
 - **告别检测** — 在连续对话中说"再见"、"拜拜"、"没事了"、"bye" 等，AI 回复后自动进入休眠（限短句 ≤15 字，避免误触发）

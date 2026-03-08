@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7",
+    "edge-tts-universal": "^1.4.0",
     "express": "^4.21.2",
     "mammoth": "^1.11.0",
     "multer": "^2.0.2",

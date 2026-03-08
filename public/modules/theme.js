@@ -1,6 +1,5 @@
 import { t } from "./i18n.js";
 
-const themeToggle = document.getElementById("theme-toggle");
 const THEME_KEY = "theme_preference";
 
 const SVG_ICONS = {
@@ -29,35 +28,57 @@ function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
-function applyTheme(preference) {
+function applyTheme(preference, toggle) {
   const effective = preference === "system" ? getSystemTheme() : preference;
   if (effective === "light") {
     document.documentElement.setAttribute("data-theme", "light");
   } else {
     document.documentElement.removeAttribute("data-theme");
   }
-  themeToggle.innerHTML = SVG_ICONS[preference] || SVG_ICONS.dark;
-  themeToggle.title = t("title_theme_" + (preference || "dark"));
+  if (toggle) {
+    toggle.innerHTML = SVG_ICONS[preference] || SVG_ICONS.dark;
+    toggle.title = t("title_theme_" + (preference || "dark"));
+  }
 }
 
+/** 应用已存储的主题（纯函数，不绑定任何 DOM 事件），voice 页面可安全调用 */
+export function applyStoredTheme() {
+  applyTheme(localStorage.getItem(THEME_KEY) || "system", null);
+
+  // 监听系统主题变化
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if ((localStorage.getItem(THEME_KEY) || "system") === "system") {
+      applyTheme("system", null);
+    }
+  });
+}
+
+/** 绑定 #theme-toggle 按钮（仅主页 app.js 调用，voice 页面不调） */
+export function bindThemeToggle() {
+  const themeToggle = document.getElementById("theme-toggle");
+  if (!themeToggle) return;
+
+  applyTheme(localStorage.getItem(THEME_KEY) || "system", themeToggle);
+
+  themeToggle.addEventListener("click", () => {
+    const order = ["dark", "light", "system"];
+    const current = localStorage.getItem(THEME_KEY) || "system";
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next, themeToggle);
+  });
+
+  document.addEventListener("lang-changed", () => {
+    applyTheme(localStorage.getItem(THEME_KEY) || "system", themeToggle);
+  });
+}
+
+// 保持向后兼容：cycleTheme 仍可导出
 export function cycleTheme() {
+  const themeToggle = document.getElementById("theme-toggle");
   const order = ["dark", "light", "system"];
   const current = localStorage.getItem(THEME_KEY) || "system";
   const next = order[(order.indexOf(current) + 1) % order.length];
   localStorage.setItem(THEME_KEY, next);
-  applyTheme(next);
+  applyTheme(next, themeToggle);
 }
-
-themeToggle.addEventListener("click", cycleTheme);
-
-window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-  if ((localStorage.getItem(THEME_KEY) || "system") === "system") {
-    applyTheme("system");
-  }
-});
-
-applyTheme(localStorage.getItem(THEME_KEY) || "system");
-
-document.addEventListener("lang-changed", () => {
-  applyTheme(localStorage.getItem(THEME_KEY) || "system");
-});

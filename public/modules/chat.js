@@ -5,6 +5,7 @@ import { renderMessages, scrollToBottom, startStreamFollow, stopStreamFollow, is
 import { renderImagePreview } from "./images.js";
 import { clearPendingDocument, renderDocumentPreview } from "./files.js";
 import { t } from "./i18n.js";
+import { parseSseStream } from "./sse-reader.js";
 
 function showSearchStatus(bubble, cursor, statusText) {
   let indicator = bubble.querySelector(".search-status");
@@ -497,14 +498,9 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
       throw new Error(t("err_no_stream"));
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let streamDone = false;
     let contentChanged = false;
     let reasoningChanged = false;
     let rafPending = false;
-    let sseParseErrors = 0;
 
     function scheduleRender() {
       if (rafPending) return;
@@ -525,80 +521,35 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
       });
     }
 
-    while (!streamDone) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      resetInactivityTimer();
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6);
-        if (data === "[DONE]") {
-          streamDone = true;
-          await reader.cancel();
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(data);
-          sseParseErrors = 0;
-          if (parsed.error) {
-            assistantMsg.content += "\n\n" + t("err_stream_error", { msg: parsed.error });
-            contentChanged = true;
-          } else if (parsed.reasoning) {
-            reasoningContent += parsed.reasoning;
-            reasoningChanged = true;
-          } else if (parsed.status) {
-            showSearchStatus(bubble, cursor, parsed.status);
-          } else if (parsed.meta) {
-            metaInfo = parsed.meta;
-          } else if (parsed.content) {
-            clearSearchStatus(bubble);
-            clearThinkingStatus(bubble);
-            assistantMsg.content += parsed.content;
-            contentChanged = true;
-          }
-        } catch (e) {
-          sseParseErrors += 1;
-          if (sseParseErrors >= 3) {
-            showToast(t("toast_stream_parse"));
-            await reader.cancel(); // 中止上游流，防止内存泄漏
-            break;
-          }
-        }
-      }
-
-      scheduleRender();
-    }
+    const { parseErrors } = await parseSseStream(response.body, {
+      onChunk: () => {
+        resetInactivityTimer();
+        scheduleRender();
+      },
+      onContent: (text) => {
+        clearSearchStatus(bubble);
+        clearThinkingStatus(bubble);
+        assistantMsg.content += text;
+        contentChanged = true;
+      },
+      onReasoning: (text) => {
+        reasoningContent += text;
+        reasoningChanged = true;
+      },
+      onStatus: (status) => {
+        showSearchStatus(bubble, cursor, status);
+      },
+      onMeta: (meta) => {
+        metaInfo = meta;
+      },
+      onError: (errMsg) => {
+        assistantMsg.content += "\n\n" + t("err_stream_error", { msg: errMsg });
+        contentChanged = true;
+      },
+    });
 
     clearTimeout(inactivityTimer);
-
-    // 刷新 decoder 残余字节 + 处理 buffer 中未消费的完整行
-    const flushed = decoder.decode();
-    if (flushed) buffer += flushed;
-    if (buffer.trim()) {
-      for (const line of buffer.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6);
-        if (data === "[DONE]") break;
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.content) {
-            assistantMsg.content += parsed.content;
-            contentChanged = true;
-          } else if (parsed.reasoning) {
-            reasoningContent += parsed.reasoning;
-            reasoningChanged = true;
-          } else if (parsed.meta) {
-            metaInfo = parsed.meta;
-          }
-        } catch {}
-      }
-    }
+    if (parseErrors >= 3) showToast(t("toast_stream_parse"));
 
     // 流式结束：确保纯文本是最新的（markdown 由收尾阶段处理）
     if (contentChanged) {

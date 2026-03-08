@@ -35,7 +35,9 @@ import {
 
 import { applyI18n } from "./modules/i18n.js";
 import { applyPersonalization } from "./modules/settings.js";
-import "./modules/theme.js";
+import { applyStoredTheme, bindThemeToggle } from "./modules/theme.js";
+applyStoredTheme();
+bindThemeToggle();
 import "./modules/import.js";
 
 function autoResize() {

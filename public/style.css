@@ -888,6 +888,24 @@ body {
   color: var(--text-secondary);
 }
 
+#voice-entry-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: color 0.2s, background 0.2s;
+  margin-bottom: 2px;
+}
+#voice-entry-btn:hover {
+  color: var(--accent);
+  background: var(--hover-bg);
+}
+
 #send-btn {
   background: var(--btn-send-bg);
   border: none;

@@ -100,6 +100,7 @@ const zh = {
   tab_memory: "长期记忆",
   tab_config: "模型参数",
   tab_import: "导入与总结",
+  tab_voice: "语音",
 
   // ── Sections ──
   section_preferences: "偏好设置",
@@ -311,6 +312,31 @@ const zh = {
   diff_current: "当前版本",
   diff_old: "历史版本",
 
+  // ── Voice ──
+  voice_section_stt: "语音识别",
+  voice_section_tts: "语音合成",
+  voice_label_stt_provider: "识别方式",
+  voice_label_tts_provider: "合成方式",
+  voice_label_tts_voice: "语音",
+  voice_label_tts_speed: "语速",
+  voice_label_clone_id: "声音克隆 ID",
+  voice_stt_browser: "浏览器内置",
+  voice_stt_api: "OpenAI Whisper API",
+  voice_stt_local: "本地 Whisper (需 Python)",
+  voice_stt_volcengine: "火山引擎 (预留)",
+  voice_tts_edge: "Edge TTS (免费)",
+  voice_tts_api: "OpenAI TTS API",
+  voice_tts_volcengine: "火山引擎 (预留)",
+  voice_title: "语音对话",
+  voice_status_idle: "点击麦克风开始",
+  voice_status_listening: "正在聆听...",
+  voice_status_processing: "AI 思考中...",
+  voice_status_speaking: "AI 说话中...",
+  voice_status_recognizing: "识别中...",
+  voice_btn_back: "返回聊天",
+  voice_err_no_mic: "无法访问麦克风",
+  voice_err_stt_unsupported: "浏览器不支持语音识别，已切换到录音模式",
+
   // ── Misc ──
   misc_disclaimer: "AI可能会犯错，请核查重要信息。",
   misc_welcome_subtext: "随时开始一段新的对话，或上传图片/文档进行分析。",
@@ -418,6 +444,7 @@ const en = {
   tab_memory: "Memory",
   tab_config: "Parameters",
   tab_import: "Import & Summary",
+  tab_voice: "Voice",
 
   // ── Sections ──
   section_preferences: "Preferences",
@@ -628,6 +655,31 @@ const en = {
   diff_title: "Version Comparison",
   diff_current: "Current Version",
   diff_old: "Historical Version",
+
+  // ── Voice ──
+  voice_section_stt: "Speech Recognition",
+  voice_section_tts: "Text to Speech",
+  voice_label_stt_provider: "STT Provider",
+  voice_label_tts_provider: "TTS Provider",
+  voice_label_tts_voice: "Voice",
+  voice_label_tts_speed: "Speed",
+  voice_label_clone_id: "Voice Clone ID",
+  voice_stt_browser: "Browser Built-in",
+  voice_stt_api: "OpenAI Whisper API",
+  voice_stt_local: "Local Whisper (needs Python)",
+  voice_stt_volcengine: "Volcengine (reserved)",
+  voice_tts_edge: "Edge TTS (free)",
+  voice_tts_api: "OpenAI TTS API",
+  voice_tts_volcengine: "Volcengine (reserved)",
+  voice_title: "Voice Chat",
+  voice_status_idle: "Tap mic to start",
+  voice_status_listening: "Listening...",
+  voice_status_processing: "AI thinking...",
+  voice_status_speaking: "AI speaking...",
+  voice_status_recognizing: "Recognizing...",
+  voice_btn_back: "Back to chat",
+  voice_err_no_mic: "Cannot access microphone",
+  voice_err_stt_unsupported: "Browser does not support speech recognition, switched to recording mode",
 
   // ── Misc ──
   misc_disclaimer: "AI can make mistakes. Verify important information.",

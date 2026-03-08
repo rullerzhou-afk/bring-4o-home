@@ -57,10 +57,12 @@ export function formatMetaTime(ts) {
   return d.toLocaleDateString(locale, { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-});
+if (typeof marked !== "undefined") {
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+  });
+}
 
 // ===== 数学公式渲染（KaTeX） =====
 

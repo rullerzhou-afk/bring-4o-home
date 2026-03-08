@@ -28,6 +28,9 @@ router.put("/config", async (req, res) => {
     if (validated.value.memory) {
       merged.memory = { ...(current.memory || {}), ...validated.value.memory };
     }
+    if (validated.value.voice) {
+      merged.voice = { ...(current.voice || {}), ...validated.value.voice };
+    }
     const updated = await saveConfig(merged);
     res.json({ ok: true, config: updated });
   } catch (err) {
