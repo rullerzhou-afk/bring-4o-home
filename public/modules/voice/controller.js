@@ -114,7 +114,10 @@ export class VoiceController {
     // 先用 config 里的模型名占位，模型列表异步加载
     this._populateModelSelect([this._config.model || "gpt-4o"]);
     apiFetch("/api/models").then(r => r.ok ? r.json() : null).then(models => {
-      if (models) this._populateModelSelect(models);
+      if (!models) return;
+      // API returns [{ id, provider }] — extract ids for <select>
+      const ids = models.map(m => typeof m === "string" ? m : m.id);
+      this._populateModelSelect(ids);
     }).catch(() => {});
 
     // 填充音色下拉框

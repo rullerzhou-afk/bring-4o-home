@@ -3,6 +3,7 @@
 ## 2026-03-09
 
 ### New Features
+- **全量模型选择器** — 顶栏模型选择器重做：搜索框 + 最近使用标签栏 + 按 Provider 分组的完整模型列表（彩色圆点 + Provider · 模型名），去掉硬编码白名单，开放所有聊天模型
 - **语音页自动记忆** — 语音对话中自动学习用户偏好/身份信息，紫色气泡通知已学到的内容（8 秒后淡出）
 - **本地 Whisper STT** — 语音设置中"本地 Whisper"选项现已可用，支持 `STT_BASE_URL` 对接本地 Whisper 服务器，或自动调用 Python 脚本（faster-whisper / openai-whisper 双后端）
 - **URL hash 路由** — `/#settings` 直接打开设置面板，`/#convId` 跳转指定对话
@@ -13,6 +14,8 @@
 - **本地 Whisper 中文乱码** — Windows 下 Python 子进程输出强制 UTF-8 编码，修复 GBK/cp936 乱码
 
 ### Improvements
+- **模型列表并行加载** — 三个 Provider 并行请求 + 8 秒超时 + 启动预热缓存，首次点击秒开
+- **火山引擎 fallback** — models.list 不可用时自动填入常见豆包模型名
 - **语音自动学习节奏优化** — 从固定冷却期改为 15 秒防抖，适配语音对话的快速节奏
 - **beforeunload 监听器清理** — 语音页 destroy 时正确移除事件监听，防止泄漏
 - **异步文件写入** — 本地 STT 临时文件改用 async I/O，不阻塞事件循环

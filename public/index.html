@@ -82,7 +82,20 @@
             <line x1="9" y1="3" x2="9" y2="21"></line>
           </svg>
         </label>
-        <select id="model-selector"></select>
+        <div id="model-picker-wrapper">
+          <button id="model-picker-trigger" type="button">—</button>
+          <div id="model-picker-dropdown" class="hidden">
+            <div class="model-picker-search-row">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="model-picker-search" data-i18n-placeholder="ph_search_model" placeholder="搜索模型...">
+            </div>
+            <div id="model-picker-recent" class="hidden"></div>
+            <div id="model-picker-list"></div>
+          </div>
+        </div>
         <button id="theme-toggle" title="切换主题"></button>
       </div>
       <!-- 消息区 -->

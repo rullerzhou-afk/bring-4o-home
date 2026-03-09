@@ -92,6 +92,11 @@ const zh = {
   label_keep_recent: "保留最近消息条数",
   label_model: "模型",
   label_summary_model: "总结模型",
+  label_recent_models: "最近使用",
+  label_no_models_found: "未找到匹配的模型",
+  label_no_models: "暂无可用模型",
+  label_provider_ark: "火山引擎",
+  ph_search_model: "搜索模型...",
   label_version_loading: "加载中...",
   label_version_load_failed: "加载失败: {msg}",
 
@@ -436,6 +441,11 @@ const en = {
   label_keep_recent: "Keep Recent Messages",
   label_model: "Model",
   label_summary_model: "Summary Model",
+  label_recent_models: "Recently Used",
+  label_no_models_found: "No matching models",
+  label_no_models: "No models available",
+  label_provider_ark: "Volcengine",
+  ph_search_model: "Search models...",
   label_version_loading: "Loading...",
   label_version_load_failed: "Load failed: {msg}",
 

@@ -72,7 +72,8 @@ export const imageInput = document.getElementById("image-input");
 export const imagePreview = document.getElementById("image-preview");
 export const documentPreview = document.getElementById("document-preview");
 export const inputWrapper = document.getElementById("input-wrapper");
-export const modelSelector = document.getElementById("model-selector");
+// Model picker trigger (old <select> replaced by custom dropdown)
+export const modelPickerTrigger = document.getElementById("model-picker-trigger");
 export const welcomeGreetingEl = document.getElementById("welcome-greeting");
 export const manageBtn = document.getElementById("manage-btn");
 export const batchBar = document.getElementById("batch-bar");

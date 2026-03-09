@@ -1,8 +1,9 @@
-import { state, modelSelector, inputEl, welcomeGreetingEl, getCurrentConv, randomGreeting } from "./state.js";
+import { state, inputEl, welcomeGreetingEl, getCurrentConv, randomGreeting } from "./state.js";
 import { apiFetch, readErrorMessage, showToast, escapeHtml } from "./api.js";
 import { initImportTab } from "./import.js";
 import { getCategoryLabel } from "./render.js";
 import { t, getLang, setLang, getLocale } from "./i18n.js";
+import { initModelPicker, setModels as setPickerModels, getSelectedModel, setSelectedModel } from "./model-picker.js";
 
 // 短时请求缓存：避免 loadModelSelector 和 loadConfigPanel 重复请求 /api/models + /api/config
 const _apiCache = new Map();
@@ -411,8 +412,9 @@ export async function loadConfigPanel() {
     currentModelDisplay.textContent = t("label_current_model", { model: config.model });
 
     // 填充模型下拉框
+    const ids = modelIdsFromList(models);
     configModel.innerHTML = "";
-    models.forEach((m) => {
+    ids.forEach((m) => {
       const opt = document.createElement("option");
       opt.value = m;
       opt.textContent = m;
@@ -654,9 +656,9 @@ savePromptsBtn.addEventListener("click", async () => {
     if (!configRes.ok) throw new Error(await readErrorMessage(configRes));
     state.currentConfig = { ...(state.currentConfig || {}), ...configBody };
 
-    // 同步顶栏模型选择器
-    if (modelSelector.value !== configModel.value) {
-      modelSelector.value = configModel.value;
+    // 同步顶栏 model picker
+    if (getSelectedModel() !== configModel.value) {
+      setSelectedModel(configModel.value);
     }
 
     applyPersonalization();
@@ -707,7 +709,7 @@ resetDefaultsBtn.addEventListener("click", async () => {
 
     // 同步模型下拉框
     configModel.value = data.config.model;
-    modelSelector.value = data.config.model;
+    setSelectedModel(data.config.model);
     currentModelDisplay.textContent = t("label_current_model", { model: data.config.model });
 
     applyPersonalization();
@@ -715,6 +717,34 @@ resetDefaultsBtn.addEventListener("click", async () => {
     setTimeout(() => (saveStatus.textContent = ""), 2000);
   } catch (err) {
     saveStatus.textContent = t("status_reset_failed", { msg: err.message });
+  }
+});
+
+// ===== Model picker (顶栏) =====
+
+// models API 现在返回 [{ id, provider }]，提取 id 数组给 <select>
+function modelIdsFromList(models) {
+  if (!Array.isArray(models) || models.length === 0) return [];
+  // 兼容旧格式（纯字符串数组）和新格式（对象数组）
+  return models.map(m => typeof m === "string" ? m : m.id);
+}
+
+initModelPicker(async (modelId) => {
+  try {
+    const saveRes = await apiFetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelId }),
+    });
+    if (!saveRes.ok) throw new Error(t("err_save_failed"));
+    const data = await saveRes.json();
+    state.currentConfig = data.config;
+
+    // 同步设置面板的模型下拉框
+    if (configModel.value !== modelId) configModel.value = modelId;
+    currentModelDisplay.textContent = t("label_current_model", { model: modelId });
+  } catch (err) {
+    console.error("切换模型失败:", err);
   }
 });
 
@@ -726,40 +756,26 @@ export async function loadModelSelector() {
     ]);
     state.currentConfig = config;
 
-    modelSelector.innerHTML = "";
-    models.forEach((m) => {
+    // 顶栏 picker
+    setPickerModels(models);
+    setSelectedModel(config.model, true);
+
+    // 设置面板 <select>
+    const ids = modelIdsFromList(models);
+    configModel.innerHTML = "";
+    ids.forEach((m) => {
       const opt = document.createElement("option");
       opt.value = m;
       opt.textContent = m;
       if (m === config.model) opt.selected = true;
-      modelSelector.appendChild(opt);
+      configModel.appendChild(opt);
     });
+
     applyPersonalization();
   } catch (err) {
     console.error("加载模型列表失败:", err);
   }
 }
-
-modelSelector.addEventListener("change", async () => {
-  try {
-    const saveRes = await apiFetch("/api/config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: modelSelector.value }),
-    });
-    if (!saveRes.ok) throw new Error(t("err_save_failed"));
-    const data = await saveRes.json();
-    state.currentConfig = data.config;
-
-    // 同步设置面板的模型下拉框
-    if (configModel.value !== modelSelector.value) {
-      configModel.value = modelSelector.value;
-    }
-    currentModelDisplay.textContent = t("label_current_model", { model: modelSelector.value });
-  } catch (err) {
-    console.error("切换模型失败:", err);
-  }
-});
 
 loadModelSelector();
 
