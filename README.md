@@ -149,16 +149,6 @@ Copy `.env.example` to `.env` and fill in:
 
 By default, Memoria only listens on localhost. For remote access, set `HOST=0.0.0.0` and `ADMIN_TOKEN` in `.env`. Recommended: expose via [Tailscale](https://tailscale.com/), [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/), or ngrok.
 
-## Model Recommendations
-
-| Model | Experience | Best for |
-|-------|-----------|----------|
-| `gpt-4o-2024-11-20` | Excellent persona adherence | Roleplay, deep conversations |
-| `gpt-4.1` | Strong instruction following | Tool-oriented users |
-| GLM-4-Plus / GLM-4.7 | Natural Chinese | Direct connection in China |
-| Kimi | Long context | Long-form writing |
-| DeepSeek R1 | Strong reasoning, weak persona | Math, logic, code |
-
 ## Tech Stack
 
 - **Backend:** Node.js + Express + OpenAI SDK v4

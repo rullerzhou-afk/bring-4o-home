@@ -155,16 +155,6 @@ Memoria 的记忆分三层，通过对话自动维护：
 
 默认只监听 localhost。需要远程访问时，在 `.env` 中设置 `HOST=0.0.0.0` 和 `ADMIN_TOKEN`。推荐通过 [Tailscale](https://tailscale.com/)、[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) 或 ngrok 暴露端口。
 
-## 模型推荐
-
-| 模型 | 体验 | 适合场景 |
-|------|------|----------|
-| `gpt-4o-2024-11-20` | 人格最稳 | 人格还原、深度对话 |
-| `gpt-4.1` | 指令遵循强 | 工具向用户 |
-| GLM-4-Plus / GLM-4.7 | 中文自然 | 国内直连 |
-| Kimi | 长上下文好 | 长文创作 |
-| DeepSeek R1 | 推理强，人格弱 | 数学/逻辑/代码 |
-
 ## 配置文件
 
 通过网页设置面板或直接编辑文件，修改后无需重启：
