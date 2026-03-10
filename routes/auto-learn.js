@@ -14,6 +14,7 @@ const {
   performReflection,
   withMemoryLock,
 } = require("../lib/auto-learn");
+const { appendMemoryLog, readMemoryLog, clearMemoryLog } = require("../lib/memory-log");
 
 router.post("/memory/auto-learn", async (req, res) => {
   const convId = req.body?.convId;
@@ -175,6 +176,9 @@ router.post("/memory/auto-learn", async (req, res) => {
     if (result?.overLimit) payload.capacityWarning = true;
     if (hasDecay) payload.decay = decay;
     if (hasPromotion) payload.promotion = promotion;
+    if (applied.length > 0) {
+      appendMemoryLog({ ts: new Date().toISOString(), convId, ops: applied });
+    }
     return res.json(payload);
   } catch (err) {
     console.error("Auto-learn error:", err.message);
@@ -209,6 +213,13 @@ router.post("/memory/auto-learn/undo", async (req, res) => {
       }
       return count;
     });
+    if (removed > 0) {
+      appendMemoryLog({
+        ts: new Date().toISOString(),
+        convId: "_undo",
+        ops: ids.map(id => ({ op: "undo", targetId: id }))
+      });
+    }
     return res.json({ removed });
   } catch (err) {
     console.error("Auto-learn undo error:", err.message);
@@ -226,10 +237,34 @@ router.post("/memory/reflect", async (req, res) => {
     }
 
     console.log(`Reflect: ${result.insights.length} insights generated`);
+    if (result.insights?.length > 0) {
+      appendMemoryLog({ ts: new Date().toISOString(), convId: "_reflect", ops: result.insights });
+    }
     return res.json(result);
   } catch (err) {
     console.error("Reflect error:", err.message);
     return res.status(500).json({ error: "反思失败，请稍后再试" });
+  }
+});
+
+router.get("/memory/log", async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 1000);
+    const entries = await readMemoryLog(limit);
+    res.json(entries);
+  } catch (err) {
+    console.error("Memory log read error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/memory/log", async (req, res) => {
+  try {
+    await clearMemoryLog();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Memory log clear error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

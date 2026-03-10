@@ -118,13 +118,13 @@ const zh = {
 
   // ── Placeholders ──
   ph_search: "搜索对话...",
-  ph_input_default: "给 4o 发消息...",
+  ph_input_default: "给 AI 发消息...",
   ph_input_with_name: "给 {name} 发消息...",
   ph_memory_search: "搜索记忆...",
   ph_memory_add: "添加一条记忆（最多80字）",
   ph_system_prompt: "在这里定义你的 AI 人格...\n\n建议参考以下结构：\n\n## 底层基调\n温暖但诚实地与用户交流。直接表达；避免无根据的、谄媚式的恭维。\n尊重用户的个人边界，培养鼓励独立而非对AI产生情感依赖的互动方式。\n\n## 角色定义\n（AI 的身份、名字、人设）\n\n## 核心人格特质\n（性格关键词、行为准则）\n\n## 偏好规则\n（语气、格式、禁用句式）\n\n## 对话底层逻辑\n（情感响应、输出控制、格式使用）\n\n## 拟人化表达\n（可选：动物形象、身体语言）\n\n点击「插入模板」可一键填入完整预设 →",
   ph_memory_prompt: "用户画像和长期记忆...",
-  ph_ai_name: "不填则默认显示「4o」",
+  ph_ai_name: "不填则默认显示「AI」",
   ph_user_name: "不填则欢迎语不带称呼",
   ph_summary_system: "AI 从对话中提取的新人格/风格发现...",
   ph_summary_memory: "AI 从对话中提取的新用户事实...",
@@ -228,10 +228,21 @@ const zh = {
   label_op_update: "更新",
   label_op_delete: "删除",
   label_op_merge: "合并",
+  label_op_undo: "撤销",
   mem_import_invalid: "导入失败：JSON 文件中没有找到有效的记忆条目（需要 identity / preferences / events 数组）",
   mem_import_missing_text: "导入失败：{cat} 中有条目缺少 text 字段",
   mem_import_confirm: "检测到 {count} 条记忆。\n\n「确定」= 替换现有记忆\n「取消」= 合并（追加不重复条目）",
   mem_import_parse_error: "导入失败：JSON 解析错误 — {msg}",
+
+  // ── Memory Timeline ──
+  title_memory_timeline: "记忆时间线",
+  timeline_empty: "暂无记忆变更记录",
+  timeline_clear: "清空日志",
+  timeline_clear_confirm: "确定清除时间线的展示记录？（仅清空日志，实际记忆内容不受影响）",
+  timeline_clear_done: "已清空时间线记录",
+  timeline_from_reflect: "整合",
+  timeline_from_undo: "撤销",
+  timeline_load_failed: "加载记录失败",
 
   // ── Time ──
   time_just_now: "刚刚",
@@ -466,13 +477,13 @@ const en = {
 
   // ── Placeholders ──
   ph_search: "Search chats...",
-  ph_input_default: "Message 4o...",
+  ph_input_default: "Message AI...",
   ph_input_with_name: "Message {name}...",
   ph_memory_search: "Search memories...",
   ph_memory_add: "Add a memory (max 80 chars)",
   ph_system_prompt: "Define your AI persona here...\n\nSuggested structure:\n\n## Foundation\nCommunicate warmly but honestly. Be direct; avoid unwarranted flattery.\nRespect personal boundaries. Encourage independence over emotional reliance on AI.\n\n## Role Definition\n(AI's identity, name, persona)\n\n## Core Personality Traits\n(Keywords, behavioral guidelines)\n\n## Preference Rules\n(Tone, format, banned phrases)\n\n## Conversation Logic\n(Emotional responses, output control, formatting)\n\n## Anthropomorphic Expression\n(Optional: animal persona, body language)\n\nClick \"Insert Template\" for a complete preset →",
   ph_memory_prompt: "User profile & long-term memory...",
-  ph_ai_name: "Default: 4o",
+  ph_ai_name: "Default: AI",
   ph_user_name: "Leave empty for generic greeting",
   ph_summary_system: "New persona/style findings extracted from conversations...",
   ph_summary_memory: "New user facts extracted from conversations...",
@@ -576,10 +587,21 @@ const en = {
   label_op_update: "Update",
   label_op_delete: "Delete",
   label_op_merge: "Merge",
+  label_op_undo: "Undo",
   mem_import_invalid: "Import failed: No valid memory entries found (need identity/preferences/events arrays)",
   mem_import_missing_text: "Import failed: {cat} has entries missing the text field",
   mem_import_confirm: "Found {count} memories.\n\nOK = Replace existing\nCancel = Merge (append unique entries)",
   mem_import_parse_error: "Import failed: JSON parse error — {msg}",
+
+  // ── Memory Timeline ──
+  title_memory_timeline: "Memory Timeline",
+  timeline_empty: "No memory change records yet",
+  timeline_clear: "Clear Log",
+  timeline_clear_confirm: "Clear timeline display records? (Only clears the log — actual memories are not affected)",
+  timeline_clear_done: "Timeline records cleared",
+  timeline_from_reflect: "Reflect",
+  timeline_from_undo: "Undo",
+  timeline_load_failed: "Failed to load records",
 
   // ── Time ──
   time_just_now: "Just now",

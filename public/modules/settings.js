@@ -83,6 +83,10 @@ const memoryReflectBtn = document.getElementById("memory-reflect-btn");
 const memoryExportBtn = document.getElementById("memory-export-btn");
 const memoryImportBtn = document.getElementById("memory-import-btn");
 const memoryImportFile = document.getElementById("memory-import-file");
+const memoryTimelineBtn = document.getElementById("memory-timeline-btn");
+const memoryTimeline = document.getElementById("memory-timeline");
+const timelineList = document.getElementById("timeline-list");
+const timelineClearBtn = document.getElementById("timeline-clear-btn");
 
 const IMPORTANCE_STARS = { 1: "\u2605", 2: "\u2605\u2605", 3: "\u2605\u2605\u2605" };
 function getImportanceLabel(level) { return t("label_importance_" + level); }
@@ -289,6 +293,107 @@ memoryReflectBtn.addEventListener("click", async () => {
     showToast(t("toast_reflect_failed"));
   } finally {
     memoryReflectBtn.classList.remove("loading");
+  }
+});
+
+// ===== 记忆时间线 =====
+
+async function loadTimeline() {
+  try {
+    const res = await apiFetch("/api/memory/log?limit=200");
+    if (!res.ok) throw new Error();
+    const entries = await res.json();
+    renderTimeline(entries);
+  } catch {
+    timelineList.innerHTML = `<div class="timeline-empty">${escapeHtml(t("timeline_load_failed"))}</div>`;
+  }
+}
+
+function renderTimeline(entries) {
+  if (!entries || entries.length === 0) {
+    timelineList.innerHTML = `<div class="timeline-empty">${escapeHtml(t("timeline_empty"))}</div>`;
+    return;
+  }
+
+  // Group by local date
+  const groups = new Map();
+  for (const entry of entries) {
+    const d = new Date(entry.ts);
+    const dayKey = d.toLocaleDateString(getLocale());
+    if (!groups.has(dayKey)) groups.set(dayKey, []);
+    groups.get(dayKey).push(entry);
+  }
+
+  let html = "";
+  for (const [day, batches] of groups) {
+    html += `<div class="timeline-day">${escapeHtml(day)}</div>`;
+    for (const batch of batches) {
+      const time = new Date(batch.ts).toLocaleTimeString(getLocale(), { hour: "2-digit", minute: "2-digit" });
+      let sourceHtml;
+      if (batch.convId === "_reflect") {
+        sourceHtml = `<span class="timeline-source source-reflect">${escapeHtml(t("timeline_from_reflect"))}</span>`;
+      } else if (batch.convId === "_undo") {
+        sourceHtml = `<span class="timeline-source source-undo">${escapeHtml(t("timeline_from_undo"))}</span>`;
+      } else {
+        const short = "#" + (batch.convId || "").slice(-4);
+        sourceHtml = `<a class="timeline-source" href="#${escapeHtml(batch.convId)}">${escapeHtml(short)}</a>`;
+      }
+
+      let opsHtml = "";
+      if (Array.isArray(batch.ops)) {
+        for (const op of batch.ops) {
+          const opType = op.dedupMerge ? "merge" : (op.op || "add");
+          const opLabel = t("label_op_" + opType) || opType;
+          const catLabel = op.category ? getCategoryLabel(op.category) : "";
+          const text = op.text || op.targetId || "";
+          opsHtml += `<div class="timeline-op">
+            <span class="timeline-op-tag op-${escapeHtml(opType)}">${escapeHtml(opLabel)}</span>
+            ${catLabel ? `<span class="timeline-cat">${escapeHtml(catLabel)}</span>` : ""}
+            <span class="timeline-text">${escapeHtml(text)}</span>
+          </div>`;
+        }
+      }
+
+      html += `<div class="timeline-batch">
+        <div class="timeline-batch-header">
+          <span class="timeline-time">${escapeHtml(time)}</span>
+          ${sourceHtml}
+        </div>
+        ${opsHtml}
+      </div>`;
+    }
+  }
+
+  timelineList.innerHTML = html;
+}
+
+memoryTimelineBtn.addEventListener("click", () => {
+  const isHidden = memoryTimeline.classList.contains("hidden");
+  memoryTimeline.classList.toggle("hidden");
+  if (isHidden) {
+    loadTimeline();
+    // 滚动到"长期记忆"标题位置
+    const sectionTitle = memoryPanel.querySelector('[data-i18n="section_long_term_memory"]');
+    if (sectionTitle) {
+      requestAnimationFrame(() => sectionTitle.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }
+});
+
+timelineClearBtn.addEventListener("click", async () => {
+  if (!confirm(t("timeline_clear_confirm"))) return;
+  try {
+    await apiFetch("/api/memory/log", { method: "DELETE" });
+    renderTimeline([]);
+    showToast(t("timeline_clear_done"), "success");
+  } catch {
+    showToast(t("timeline_load_failed"));
+  }
+});
+
+document.addEventListener("lang-changed", () => {
+  if (memoryTimeline && !memoryTimeline.classList.contains("hidden")) {
+    loadTimeline();
   }
 });
 

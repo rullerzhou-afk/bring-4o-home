@@ -143,7 +143,7 @@
               </div>
             </div>
             <input type="file" id="image-input" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json" multiple hidden />
-            <textarea id="user-input" placeholder="给 4o 发消息..." data-i18n-placeholder="ph_input_default" rows="1"></textarea>
+            <textarea id="user-input" placeholder="给 AI 发消息..." data-i18n-placeholder="ph_input_default" rows="1"></textarea>
             <a href="/voice" id="voice-entry-btn" title="语音对话" data-i18n-title="voice_title">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -282,7 +282,7 @@
             </div>
             <div class="config-row text-input-row">
               <label data-i18n="label_ai_name">AI 名称</label>
-              <input type="text" id="config-ai-name" maxlength="30" placeholder="不填则默认显示「4o」" data-i18n-placeholder="ph_ai_name" />
+              <input type="text" id="config-ai-name" maxlength="30" placeholder="不填则默认显示「AI」" data-i18n-placeholder="ph_ai_name" />
             </div>
             <div class="config-row text-input-row">
               <label data-i18n="label_user_name">你的称呼</label>
@@ -300,6 +300,13 @@
                 <button id="memory-search-clear" class="memory-search-clear hidden" type="button">&times;</button>
               </div>
               <div class="memory-toolbar-actions">
+                <button id="memory-timeline-btn" class="memory-action-btn" type="button"
+                        title="记忆时间线" data-i18n-title="title_memory_timeline">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </button>
                 <button id="memory-reflect-btn" class="memory-action-btn" type="button" title="整合记忆" data-i18n-title="title_reflect">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10" />
@@ -323,6 +330,14 @@
                 </button>
                 <input type="file" id="memory-import-file" accept=".json" hidden />
               </div>
+            </div>
+            <div id="memory-timeline" class="memory-timeline hidden">
+              <div class="timeline-header">
+                <span data-i18n="title_memory_timeline">记忆时间线</span>
+                <button id="timeline-clear-btn" class="timeline-clear-btn"
+                        data-i18n="timeline_clear">清空日志</button>
+              </div>
+              <div id="timeline-list" class="timeline-list"></div>
             </div>
             <div id="memory-structured">
               <div class="memory-category" data-category="identity">
@@ -582,12 +597,13 @@
             </div>
           </div>
 
-          <!-- 取消对 footer 的包裹，直接放在 body 兄弟层级 -->
-          <div id="settings-footer">
-            <span id="save-status"></span>
-            <button id="reset-defaults" class="secondary-btn" data-i18n="btn_reset">恢复默认</button>
-            <button id="save-prompts" data-i18n="btn_save">保存修改</button>
-          </div>
+        </div> <!-- End #settings-body -->
+
+        <div id="settings-footer">
+          <span id="save-status"></span>
+          <button id="reset-defaults" class="secondary-btn" data-i18n="btn_reset">恢复默认</button>
+          <button id="save-prompts" data-i18n="btn_save">保存修改</button>
+        </div>
 
         </div> <!-- End #settings-content-wrapper -->
       </div> <!-- End #settings-panel -->
