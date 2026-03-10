@@ -159,7 +159,7 @@ router.post("/voice/stt", upload.single("audio"), async (req, res) => {
 });
 
 // ===== Edge TTS 合成 =====
-async function synthesizeEdgeTts(text, voice, speed) {
+async function synthesizeEdgeTts(text, voice, speed, signal) {
   const { Communicate } = require("edge-tts-universal");
   const safeVoice = EDGE_TTS_VOICES.has(voice) ? voice : EDGE_TTS_DEFAULT_VOICE;
   // speed: 1.0 → "+0%", 1.5 → "+50%", 0.8 → "-20%"
@@ -167,10 +167,26 @@ async function synthesizeEdgeTts(text, voice, speed) {
   const rateStr = (pct >= 0 ? "+" : "") + pct + "%";
   const communicate = new Communicate(text, { voice: safeVoice, rate: rateStr });
   const buffers = [];
-  for await (const chunk of communicate.stream()) {
-    if (chunk.type === "audio" && chunk.data) {
-      buffers.push(chunk.data);
+  const gen = communicate.stream();
+  // When signal fires, force-close the generator so the WebSocket is released
+  // and the for-await loop exits promptly instead of waiting for the next chunk.
+  const onAbort = () => gen.return(undefined).catch(() => {});
+  if (signal) {
+    if (signal.aborted) { onAbort(); throw Object.assign(new Error("Edge TTS aborted"), { name: "AbortError" }); }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
+    for await (const chunk of gen) {
+      if (signal?.aborted) break;
+      if (chunk.type === "audio" && chunk.data) {
+        buffers.push(chunk.data);
+      }
     }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
+  if (signal?.aborted) {
+    throw Object.assign(new Error("Edge TTS aborted"), { name: "AbortError" });
   }
   return Buffer.concat(buffers);
 }
@@ -191,12 +207,9 @@ router.post("/voice/tts", async (req, res) => {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), EDGE_TTS_TIMEOUT_MS);
     try {
-      const buf = await Promise.race([
-        synthesizeEdgeTts(text, rawVoice || EDGE_TTS_DEFAULT_VOICE, speed),
-        new Promise((_, reject) => abort.signal.addEventListener("abort", () =>
-          reject(Object.assign(new Error("Edge TTS timed out"), { name: "AbortError" }))
-        )),
-      ]);
+      const buf = await synthesizeEdgeTts(
+        text, rawVoice || EDGE_TTS_DEFAULT_VOICE, speed, abort.signal
+      );
       clearTimeout(timer);
       res.set("Content-Type", "audio/mpeg");
       return res.send(buf);
@@ -220,7 +233,7 @@ router.post("/voice/tts", async (req, res) => {
             return res.status(504).json({ error: "OpenAI TTS fallback timed out." });
           }
           console.error("[voice/tts] OpenAI fallback also failed:", fallbackErr.message);
-          return res.status(502).json({ error: "Edge TTS and OpenAI TTS both failed." });
+          return res.status(502).json({ error: `Edge TTS failed: ${edgeErr.message}; OpenAI TTS fallback also failed: ${fallbackErr.message}` });
         } finally {
           clearTimeout(fallbackTimer);
         }

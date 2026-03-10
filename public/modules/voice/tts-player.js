@@ -150,9 +150,14 @@ export class TtsPlayer extends EventTarget {
     this._nextPlay = 0;
     this._pendingFetches.forEach(c => c.abort());
     this._pendingFetches = [];
+    const wasActive = this._playing || this._started;
     this._playing = false;
     this._started = false;
     this._sealed = false;
+    // 通知调用方播放已终止，让 once: true 的 end 监听器能正常触发
+    if (wasActive) {
+      this.dispatchEvent(new Event("end"));
+    }
   }
 
   destroy() {

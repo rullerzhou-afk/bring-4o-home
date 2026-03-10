@@ -105,6 +105,10 @@ router.post("/conversations/search", async (req, res) => {
   const CONCURRENCY = 10;
   const TIMEOUT_MS = 5000;
 
+  // Abort in-flight file reads when the client disconnects
+  const abort = new AbortController();
+  req.on("close", () => abort.abort());
+
   try {
     const files = (await fsp.readdir(CONVERSATIONS_DIR)).filter(
       (f) => f.endsWith(".json") && f !== "_index.json"
@@ -113,7 +117,8 @@ router.post("/conversations/search", async (req, res) => {
     const deadline = Date.now() + TIMEOUT_MS;
 
     function searchFile(file) {
-      return fsp.readFile(path.join(CONVERSATIONS_DIR, file), "utf-8").then((raw) => {
+      if (abort.signal.aborted) return Promise.resolve(null);
+      return fsp.readFile(path.join(CONVERSATIONS_DIR, file), { encoding: "utf-8", signal: abort.signal }).then((raw) => {
         const data = JSON.parse(raw);
         let matchSnippet = "";
         if (data.title && data.title.toLowerCase().includes(q)) {
@@ -140,8 +145,9 @@ router.post("/conversations/search", async (req, res) => {
       }).catch(() => null);
     }
 
+    let truncated = false;
     for (let i = 0; i < files.length; i += CONCURRENCY) {
-      if (results.length >= MAX_RESULTS || Date.now() > deadline) break;
+      if (results.length >= MAX_RESULTS || Date.now() > deadline || abort.signal.aborted) break;
       const chunk = files.slice(i, i + CONCURRENCY);
       const hits = await Promise.all(chunk.map(searchFile));
       for (const hit of hits) {
@@ -149,9 +155,17 @@ router.post("/conversations/search", async (req, res) => {
       }
     }
 
+    if (abort.signal.aborted) return; // client gone, don't send response
+
+    // Exited early due to max results or timeout
+    if (results.length >= MAX_RESULTS || Date.now() > deadline) {
+      truncated = true;
+    }
+
     results.sort((a, b) => b.id.length - a.id.length || b.id.localeCompare(a.id));
-    res.json(results);
+    res.json({ results, truncated });
   } catch (err) {
+    if (abort.signal.aborted) return; // client disconnected, nothing to send
     console.error("[conversations] search error:", err);
     res.status(500).json({ error: "Internal server error" });
   }

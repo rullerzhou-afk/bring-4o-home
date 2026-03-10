@@ -180,6 +180,7 @@ searchInput.addEventListener("input", () => {
 
   if (!q || q.length < 2) {
     searchResults.value = null;
+    searchResults.truncated = false;
     renderChatList();
     return;
   }
@@ -193,7 +194,15 @@ searchInput.addEventListener("input", () => {
         body: JSON.stringify({ q }),
       });
       if (!res.ok) throw new Error();
-      searchResults.value = await res.json();
+      const data = await res.json();
+      // Support both old (array) and new ({ results, truncated }) formats
+      if (Array.isArray(data)) {
+        searchResults.value = data;
+        searchResults.truncated = false;
+      } else {
+        searchResults.value = data.results || [];
+        searchResults.truncated = !!data.truncated;
+      }
       renderChatList();
     } catch {
       // 降级到客户端标题搜索

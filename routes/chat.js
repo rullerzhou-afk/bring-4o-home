@@ -103,9 +103,11 @@ router.post("/chat", async (req, res) => {
             const mimeMap = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
             part.image_url.url = "data:" + (mimeMap[ext] || "image/png") + ";base64," + buf.toString("base64");
           } catch (e) {
-            console.error("Failed to read image:", part.image_url.url, e.message);
+            const originalUrl = part.image_url.url;
+            console.error("Failed to read image:", originalUrl, e.message);
+            // Preserve the original user content as text rather than silently dropping it
             part.type = "text";
-            part.text = "[图片不可用]";
+            part.text = `[图片不可用: ${path.basename(originalUrl)}]`;
             delete part.image_url;
           }
         }

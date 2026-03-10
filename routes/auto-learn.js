@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { readMemoryStore, renderMemoryWithIds, writeMemoryStore } = require("../lib/prompts");
 const { isPlainObject, readConfig } = require("../lib/config");
-const { isValidConvId } = require("../lib/validators");
+const { isValidConvId, MEMORY_CATEGORIES } = require("../lib/validators");
 const {
   AUTO_LEARN_MODEL,
   AUTO_LEARN_PROMPT,
@@ -199,7 +199,7 @@ router.post("/memory/auto-learn/undo", async (req, res) => {
     const removed = await withMemoryLock(async () => {
       const store = await readMemoryStore();
       let count = 0;
-      for (const cat of ["identity", "preferences", "events"]) {
+      for (const cat of MEMORY_CATEGORIES) {
         const before = store[cat].length;
         store[cat] = store[cat].filter((item) => !idsToRemove.has(item.id));
         count += before - store[cat].length;

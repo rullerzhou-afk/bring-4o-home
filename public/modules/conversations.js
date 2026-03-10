@@ -214,7 +214,7 @@ export async function batchDelete() {
   }).catch(() => {});
 }
 
-export const searchResults = { value: null }; // null = 正常模式，数组 = 搜索模式
+export const searchResults = { value: null, truncated: false }; // null = 正常模式，数组 = 搜索模式
 
 // ---- 分组辅助 ----
 
@@ -472,6 +472,12 @@ export function renderChatList() {
     }
     for (const item of items) {
       chatListEl.appendChild(renderChatItem(item, false));
+    }
+    if (searchResults.truncated) {
+      const notice = document.createElement("div");
+      notice.style.cssText = "color: var(--text-secondary); font-size: 12px; text-align: center; padding: 8px 16px;";
+      notice.textContent = t("label_search_truncated");
+      chatListEl.appendChild(notice);
     }
     return;
   }

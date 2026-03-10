@@ -10,6 +10,8 @@ import { renderMarkdown, formatMetaTime } from "./api.js";
 import { showLightbox } from "./images.js";
 import { t } from "./i18n.js";
 
+export const MEMORY_CATEGORIES = ["identity", "preferences", "events"];
+
 // ===== SVG 图标 =====
 export const ICON_COPY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
 export const ICON_CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -96,7 +98,7 @@ export function appendMemoryIndicator(container, metaEl, memories) {
   const panel = document.createElement("div");
   panel.className = "memory-ref-panel hidden";
 
-  for (const cat of ["identity", "preferences", "events"]) {
+  for (const cat of MEMORY_CATEGORIES) {
     const items = memories.filter((m) => m.category === cat);
     if (items.length === 0) continue;
     const heading = document.createElement("div");

@@ -3,7 +3,7 @@ const fsp = fs.promises;
 const router = require("express").Router();
 const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { readConfig, getConversationPath, atomicWrite, withConvLock } = require("../lib/config");
-const { isValidConvId } = require("../lib/validators");
+const { isValidConvId, validateMessages } = require("../lib/validators");
 
 const COMPRESS_PROMPT = `你是一个对话摘要专家。请将以下对话历史压缩为一段简洁的叙事摘要。
 
@@ -84,6 +84,13 @@ router.post("/compress", async (req, res) => {
   }
   if (!Array.isArray(messages) || messages.length < 2) {
     return res.status(400).json({ error: "Need at least 2 messages to compress." });
+  }
+  const mv = validateMessages(messages);
+  if (!mv.ok) {
+    return res.status(400).json({ error: mv.error });
+  }
+  if (originalCount !== undefined && (!Number.isInteger(originalCount) || originalCount < 0)) {
+    return res.status(400).json({ error: "`originalCount` must be a non-negative integer." });
   }
 
   try {

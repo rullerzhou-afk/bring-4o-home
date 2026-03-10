@@ -168,8 +168,9 @@ describe("POST /conversations/search", () => {
     readFileSpy.mockResolvedValue(JSON.stringify({ id: "123", title: "Hello World", messages: [] }));
     const res = createRes();
     await getHandler()(createReq({ body: { q: "hello" } }), res);
-    expect(res._json).toHaveLength(1);
-    expect(res._json[0].snippet).toBe("Hello World");
+    expect(res._json.results).toHaveLength(1);
+    expect(res._json.results[0].snippet).toBe("Hello World");
+    expect(res._json.truncated).toBe(false);
   });
 
   it("匹配消息内容", async () => {
@@ -179,8 +180,8 @@ describe("POST /conversations/search", () => {
     }));
     const res = createRes();
     await getHandler()(createReq({ body: { q: "关键词" } }), res);
-    expect(res._json).toHaveLength(1);
-    expect(res._json[0].snippet).toContain("关键词");
+    expect(res._json.results).toHaveLength(1);
+    expect(res._json.results[0].snippet).toContain("关键词");
   });
 
   it("不匹配 → 空", async () => {
@@ -188,7 +189,8 @@ describe("POST /conversations/search", () => {
     readFileSpy.mockResolvedValue(JSON.stringify({ id: "123", title: "标题", messages: [] }));
     const res = createRes();
     await getHandler()(createReq({ body: { q: "不存在" } }), res);
-    expect(res._json).toEqual([]);
+    expect(res._json.results).toEqual([]);
+    expect(res._json.truncated).toBe(false);
   });
 
   it("跳过 _index.json", async () => {
@@ -196,7 +198,7 @@ describe("POST /conversations/search", () => {
     readFileSpy.mockResolvedValue(JSON.stringify({ id: "123", title: "Match", messages: [] }));
     const res = createRes();
     await getHandler()(createReq({ body: { q: "match" } }), res);
-    expect(res._json).toHaveLength(1);
+    expect(res._json.results).toHaveLength(1);
   });
 
   it("损坏文件被跳过", async () => {
@@ -204,7 +206,7 @@ describe("POST /conversations/search", () => {
     readFileSpy.mockRejectedValue(new Error("read error"));
     const res = createRes();
     await getHandler()(createReq({ body: { q: "test" } }), res);
-    expect(res._json).toEqual([]);
+    expect(res._json.results).toEqual([]);
   });
 });
 

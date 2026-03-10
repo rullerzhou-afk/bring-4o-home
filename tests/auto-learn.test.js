@@ -342,20 +342,20 @@ some random text`;
   describe('tryAcquireCooldown', () => {
     it('returns true on first call for a convId', () => {
       const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test', AUTO_LEARN_COOLDOWN: '180' });
-      expect(mod.tryAcquireCooldown('conv-fresh-001')).toBe(true);
+      expect(mod.tryAcquireCooldown('1700000000001')).toBe(true);
     });
 
     it('returns false when called again within cooldown', () => {
       const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test', AUTO_LEARN_COOLDOWN: '180' });
-      mod.tryAcquireCooldown('conv-cd-001');
-      expect(mod.tryAcquireCooldown('conv-cd-001')).toBe(false);
+      mod.tryAcquireCooldown('1700000000002');
+      expect(mod.tryAcquireCooldown('1700000000002')).toBe(false);
     });
 
     it('cools down independently per convId', () => {
       const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test', AUTO_LEARN_COOLDOWN: '180' });
-      mod.tryAcquireCooldown('conv-a');
-      expect(mod.tryAcquireCooldown('conv-b')).toBe(true); // different conv, should succeed
-      expect(mod.tryAcquireCooldown('conv-a')).toBe(false); // same conv, still cooling
+      mod.tryAcquireCooldown('1700000000003');
+      expect(mod.tryAcquireCooldown('1700000000004')).toBe(true); // different conv, should succeed
+      expect(mod.tryAcquireCooldown('1700000000003')).toBe(false); // same conv, still cooling
     });
 
     it('returns false for non-string convId', () => {
@@ -363,6 +363,14 @@ some random text`;
       expect(mod.tryAcquireCooldown(null)).toBe(false);
       expect(mod.tryAcquireCooldown(undefined)).toBe(false);
       expect(mod.tryAcquireCooldown(12345)).toBe(false);
+    });
+
+    it('returns false for invalid convId format', () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      expect(mod.tryAcquireCooldown('conv-abc')).toBe(false);
+      expect(mod.tryAcquireCooldown('short')).toBe(false);
+      expect(mod.tryAcquireCooldown('')).toBe(false);
+      expect(mod.tryAcquireCooldown('12345678901234567')).toBe(false); // 17 digits, too long
     });
   });
 

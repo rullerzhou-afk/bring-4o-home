@@ -8,6 +8,7 @@ function createReq({ body, params, query, file } = {}) {
     params: params || {},
     query: query || {},
     file: file || undefined,
+    on() {},  // stub for event listeners (e.g. req.on('close', ...))
   };
 }
 

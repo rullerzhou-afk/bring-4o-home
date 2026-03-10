@@ -38,13 +38,13 @@ export class SttManager extends EventTarget {
     return this._provider !== "browser" ? this._audioSession.micAnalyser : null;
   }
 
-  start() {
+  async start() {
     if (this._active) return;
     this._active = true;
     if (this._provider === "browser") {
       this._startBrowser();
     } else {
-      this._startApi();
+      await this._startApi();
     }
   }
 

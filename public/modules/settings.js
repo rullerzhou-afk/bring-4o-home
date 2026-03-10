@@ -1,7 +1,7 @@
 import { state, inputEl, welcomeGreetingEl, getCurrentConv, randomGreeting } from "./state.js";
 import { apiFetch, readErrorMessage, showToast, escapeHtml } from "./api.js";
 import { initImportTab } from "./import.js";
-import { getCategoryLabel } from "./render.js";
+import { getCategoryLabel, MEMORY_CATEGORIES } from "./render.js";
 import { t, getLang, setLang, getLocale } from "./i18n.js";
 import { initModelPicker, setModels as setPickerModels, getSelectedModel, setSelectedModel } from "./model-picker.js";
 
@@ -123,7 +123,7 @@ function renderMemoryList(store) {
   if (!store) return;
   state.memoryStore = store;
 
-  for (const category of ["identity", "preferences", "events"]) {
+  for (const category of MEMORY_CATEGORIES) {
     const container = memoryStructured.querySelector(`.memory-category[data-category="${category}"] .memory-items`);
     if (!container) continue;
 
@@ -336,15 +336,14 @@ memoryImportFile.addEventListener("change", (e) => {
       const data = JSON.parse(reader.result);
 
       // 校验：至少要有可解析的记忆条目
-      const categories = ["identity", "preferences", "events"];
-      const hasItems = categories.some((c) => Array.isArray(data[c]) && data[c].length > 0);
+      const hasItems = MEMORY_CATEGORIES.some((c) => Array.isArray(data[c]) && data[c].length > 0);
       if (!hasItems) {
         alert(t("mem_import_invalid"));
         return;
       }
 
       // 校验每条都有 text
-      for (const cat of categories) {
+      for (const cat of MEMORY_CATEGORIES) {
         if (!Array.isArray(data[cat])) continue;
         for (const item of data[cat]) {
           if (!item.text || typeof item.text !== "string") {
@@ -354,7 +353,7 @@ memoryImportFile.addEventListener("change", (e) => {
         }
       }
 
-      const totalCount = categories.reduce((n, c) => n + (data[c]?.length || 0), 0);
+      const totalCount = MEMORY_CATEGORIES.reduce((n, c) => n + (data[c]?.length || 0), 0);
       const replace = confirm(t("mem_import_confirm", { count: totalCount }));
 
       if (!state.memoryStore) {
@@ -376,7 +375,7 @@ memoryImportFile.addEventListener("change", (e) => {
       };
 
       let counter = 0;
-      for (const cat of categories) {
+      for (const cat of MEMORY_CATEGORIES) {
         const incoming = Array.isArray(data[cat]) ? normalizeItems(data[cat], counter) : [];
         counter += incoming.length;
 

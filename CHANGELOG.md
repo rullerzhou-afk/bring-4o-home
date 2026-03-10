@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-03-10
+
+### Bug Fixes — P1 收官（11 项全清）
+- **语音 barge-in 内容丢失** — 打断 AI 说话时，已说出的部分回复不再丢弃，正确保存到 assistant 消息
+- **beforeunload 重复注册** — 语音页多次初始化不再泄漏事件监听器
+- **TtsPlayer.stop 无 end 事件** — 手动停止播放后调用方能正确感知播放终止
+- **STT start 未 await** — API 模式下麦克风权限获取完成后才进入 listening 状态
+- **Edge TTS 超时资源泄漏** — 超时后 AbortSignal 主动关闭 WebSocket 和 async generator，不再后台消耗内存
+- **搜索 abort 未传递** — 客户端断开连接时立即中止文件 I/O，避免无效磁盘读取
+- **压缩校验缺失** — 压缩端点复用 `validateMessages()` 校验消息格式
+- **fallback 错误信息不准确** — Edge TTS + OpenAI TTS 双失败时显示两方具体错误信息
+- **memory.md 双写竞态** — JSON 写入成功后 md 写入失败不再静默丢错，记录日志但不回滚
+- **outbound 内容丢失** — 图片转 base64 失败时保留原始文件名，不再静默丢弃
+- **auto-learn 对话 ID 不检查** — 用 `isValidConvId()` 严格校验 10-16 位纯数字格式
+
+### Improvements
+- **MEMORY_CATEGORIES 常量统一** — 后端 5 文件 + 前端 2 文件的 `["identity", "preferences", "events"]` 硬编码全部替换为共享常量
+- **搜索超时提示用户** — 搜索因超时或达到上限提前退出时，前端显示"结果可能不完整"提示
+- **记忆注入日志** — `selectMemoryForPrompt` 打印注入数量及分类统计，`parseAutoLearnOutput` 打印 ADD/UPDATE/DELETE 操作统计
+- **SSE token 拼接优化** — 语音控制器从 O(n²) 的数组 join 改为增量字符串拼接
+
 ## 2026-03-09
 
 ### New Features

@@ -69,6 +69,7 @@ export class VoiceController {
     this._fillerBuffer = null;
     this._initialized = false;
     this._savedCount = 0;
+    this._pendingAiText = "";  // partial AI text accumulated during SSE streaming
 
     // DOM
     this._micBtn = null;
@@ -160,6 +161,10 @@ export class VoiceController {
     }
 
     // 离开页面时立即触发自动记忆（不走 debounce）
+    // 防御性：先移除旧监听器再注册（虽然 _initialized 守卫已防重复 init）
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+    }
     this._beforeUnloadHandler = () => this._doAutoLearn();
     window.addEventListener("beforeunload", this._beforeUnloadHandler);
 
@@ -333,6 +338,10 @@ export class VoiceController {
     this._ttsPlayer?.stop();
     this._abortController?.abort();
 
+    // Finalize partial assistant response before saving — the SSE abort
+    // causes _streamChat to return early, skipping the normal message push.
+    this._finalizePartialAssistant();
+
     // 保存 partial response
     await this._saveMessages();
 
@@ -340,6 +349,18 @@ export class VoiceController {
 
     // 重新开始录音
     await this._startSession();
+  }
+
+  /**
+   * Flush any accumulated AI tokens into this._messages so that
+   * a barge-in does not discard the partial assistant response.
+   */
+  _finalizePartialAssistant() {
+    const text = this._pendingAiText;
+    this._pendingAiText = "";
+    if (text) {
+      this._messages.push({ role: "assistant", content: text });
+    }
   }
 
   async _startSession() {
@@ -389,7 +410,7 @@ export class VoiceController {
       }
     });
 
-    this._sttManager.start();
+    await this._sttManager.start();
     this._setState("listening");
 
     // 设置球体可视化
@@ -445,7 +466,7 @@ export class VoiceController {
   async _streamChat(sessionId) {
     this._abortController = new AbortController();
     const sentenceBuffer = new SentenceBuffer();
-    const aiParts = [];
+    this._pendingAiText = "";
 
     const messagesWithVoice = [getVoiceSystemMsg(), ...this._messages];
 
@@ -485,8 +506,8 @@ export class VoiceController {
       await parseSseStream(resp.body, {
         onContent: (text) => {
           if (sessionId !== this._sessionId) return;
-          aiParts.push(text);
-          this._updateAiText(aiParts.join(""));
+          this._pendingAiText += text;
+          this._updateAiText(this._pendingAiText);
 
           for (const sentence of sentenceBuffer.add(text)) {
             this._ttsPlayer.enqueue(sentence, ttsOptions);
@@ -514,16 +535,15 @@ export class VoiceController {
     // 标记 TTS 不会再有新句子
     this._ttsPlayer.seal();
 
-    // 追加 assistant message
-    const fullText = aiParts.join("");
-    if (fullText) {
-      this._messages.push({ role: "assistant", content: fullText });
-    }
+    // Finalize assistant message (moves _pendingAiParts → this._messages)
+    this._finalizePartialAssistant();
 
     this._triggerAutoLearn();
 
     // 如果没有任何 TTS 内容（空回复），手动回到 idle
-    if (!fullText && !this._ttsPlayer.playing) {
+    const lastMsg = this._messages[this._messages.length - 1];
+    const hasContent = lastMsg?.role === "assistant" && lastMsg.content;
+    if (!hasContent && !this._ttsPlayer.playing) {
       this._setState("idle");
     }
   }
