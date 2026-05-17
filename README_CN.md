@@ -199,4 +199,4 @@ Memoria 的记忆分三层，通过对话自动维护：
 
 ## License
 
-[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — 可自由下载、学习、修改、分享，但不可商用。
+[MIT](LICENSE) — 可自由下载、学习、修改、分享、商用。

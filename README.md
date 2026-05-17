@@ -172,4 +172,4 @@ No build step. No database. No framework lock-in. One `npm start` and you're run
 
 ## License
 
-[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — Free to use, modify, and share. Not for commercial use.
+[MIT](LICENSE) — Free to use, modify, and distribute, including for commercial purposes.
